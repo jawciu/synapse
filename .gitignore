@@ -10,6 +10,8 @@ frontend/dist/
 .tmp/synapse-api.log
 .tmp/synapse-frontend.log
 .tmp/synapse-pids
+*.log
+*.log.*
 
 # Virtual environments
 .venv
