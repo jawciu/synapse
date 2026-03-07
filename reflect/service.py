@@ -9,13 +9,13 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from .agent import build_reflection_graph, _init
+from .agent import build_reflection_graph, _init, get_conn_and_vector_store
 from .chat_agent import build_chat_agent
+from .graph_store import make_graph_tools
 from .prompts import get_daily_prompt
 
 
 _reflection_graph = None
-_chat_agent = None
 
 _VALID_REFLECTION_SOURCES = {"app", "telegram_text", "voice"}
 
@@ -57,11 +57,11 @@ def _ensure_graph():
     return _reflection_graph
 
 
-def _ensure_chat():
-    global _chat_agent
-    if _chat_agent is None:
-        _chat_agent = build_chat_agent()
-    return _chat_agent
+def _build_chat_agent_for_user(user_id: str | None):
+    _init()
+    conn, vector_store = get_conn_and_vector_store()
+    _, chat_tools = make_graph_tools(conn, vector_store, user_id=user_id)
+    return build_chat_agent(chat_tools)
 
 
 def run_reflection_pipeline(
@@ -69,6 +69,7 @@ def run_reflection_pipeline(
     daily_prompt: str | None,
     thread_id: str | None,
     source: str | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     graph = _ensure_graph()
     _init()
@@ -80,6 +81,7 @@ def run_reflection_pipeline(
             "reflection_text": reflection_text,
             "daily_prompt": daily_prompt,
             "source": active_source,
+            "user_id": user_id,
             "messages": [],
         },
         config={"configurable": {"thread_id": active_thread}},
@@ -90,10 +92,10 @@ def run_reflection_pipeline(
     }
 
 
-def run_chat(message: str, thread_id: str | None) -> dict[str, Any]:
-    chat_agent = _ensure_chat()
+def run_chat(message: str, thread_id: str | None, user_id: str | None = None) -> dict[str, Any]:
     _init()
     active_thread = _normalize_thread_id(thread_id, "chat-session")
+    chat_agent = _build_chat_agent_for_user(user_id)
     response = chat_agent.invoke(
         {"messages": [HumanMessage(content=message)]},
         config={"configurable": {"thread_id": active_thread}},
@@ -123,11 +125,11 @@ def run_chat(message: str, thread_id: str | None) -> dict[str, Any]:
     }
 
 
-async def stream_chat(message: str, thread_id: str | None) -> AsyncGenerator[str, None]:
+async def stream_chat(message: str, thread_id: str | None, user_id: str | None = None) -> AsyncGenerator[str, None]:
     """Yield SSE events as the chat agent streams its response."""
-    chat_agent = _ensure_chat()
     _init()
     active_thread = _normalize_thread_id(thread_id, "chat-session")
+    chat_agent = _build_chat_agent_for_user(user_id)
 
     yield f"data: {json.dumps({'type': 'thread_id', 'content': active_thread})}\n\n"
 
@@ -138,21 +140,15 @@ async def stream_chat(message: str, thread_id: str | None) -> AsyncGenerator[str
     ):
         kind = event["event"]
         if kind == "on_chat_model_stream":
-            # Only stream tokens from the final answer, not from tool-calling steps
             chunk = event["data"]["chunk"]
-            content = chunk.content
-            # Anthropic returns a list of content blocks, OpenAI returns a string
-            if isinstance(content, list):
-                token = "".join(block.get("text", "") for block in content if isinstance(block, dict))
-            else:
-                token = content
+            token = chunk.content
             if token and isinstance(token, str):
                 yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 
 
-def get_dashboard_payload() -> dict[str, Any]:
+def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
     _init()
     from .agent import _conn
 
@@ -176,35 +172,35 @@ def get_dashboard_payload() -> dict[str, Any]:
             },
         }
 
-    # Pull the same shapes as the old Streamlit dashboard so the new frontend
-    # can render equivalent views.
-    pattern_rows = _conn.query("SELECT name, category, occurrences FROM pattern ORDER BY occurrences DESC")
+    uid = {"user_id": user_id}
+
+    pattern_rows = _conn.query("SELECT name, category, occurrences FROM pattern WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     if not pattern_rows or isinstance(pattern_rows, str):
         pattern_rows = []
 
-    ifs_rows = _conn.query("SELECT name, role, description, occurrences FROM ifs_part ORDER BY occurrences DESC")
+    ifs_rows = _conn.query("SELECT name, role, description, occurrences FROM ifs_part WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     ifs_rows = [] if (not ifs_rows or isinstance(ifs_rows, str)) else ifs_rows
 
-    schema_rows = _conn.query("SELECT name, domain, coping_style, description, occurrences FROM schema_pattern ORDER BY occurrences DESC")
+    schema_rows = _conn.query("SELECT name, domain, coping_style, description, occurrences FROM schema_pattern WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     schema_rows = [] if (not schema_rows or isinstance(schema_rows, str)) else schema_rows
 
-    emotion_rows = _conn.query("SELECT name, valence, intensity FROM emotion ORDER BY intensity DESC")
+    emotion_rows = _conn.query("SELECT name, valence, intensity FROM emotion WHERE user_id = $user_id ORDER BY intensity DESC", uid)
     emotion_rows = [] if (not emotion_rows or isinstance(emotion_rows, str)) else emotion_rows
 
-    people_rows = _conn.query("SELECT name, relationship, description, occurrences FROM person ORDER BY occurrences DESC")
+    people_rows = _conn.query("SELECT name, relationship, description, occurrences FROM person WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     people_rows = [] if (not people_rows or isinstance(people_rows, str)) else people_rows
 
-    body_rows = _conn.query("SELECT name, location, occurrences FROM body_signal ORDER BY occurrences DESC")
+    body_rows = _conn.query("SELECT name, location, occurrences FROM body_signal WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     body_rows = [] if (not body_rows or isinstance(body_rows, str)) else body_rows
 
-    co_occurrences = _conn.query("SELECT in.name AS pattern_a, out.name AS pattern_b, count AS times FROM co_occurs_with ORDER BY times DESC LIMIT 10")
+    co_occurrences = _conn.query("SELECT in.name AS pattern_a, out.name AS pattern_b, count AS times FROM co_occurs_with WHERE in.user_id = $user_id ORDER BY times DESC LIMIT 10", uid)
     if co_occurrences is None or isinstance(co_occurrences, str):
         co_occurrences = []
 
-    reflections_total = _conn.query("SELECT count() AS total FROM reflection GROUP ALL")
+    reflections_total = _conn.query("SELECT count() AS total FROM reflection WHERE user_id = $user_id GROUP ALL", uid)
     total_reflections = reflections_total[0]["total"] if reflections_total and not isinstance(reflections_total, str) else 0
 
-    themes_rows = _conn.query("SELECT name FROM theme") or []
+    themes_rows = _conn.query("SELECT name FROM theme WHERE user_id = $user_id", uid) or []
     total_patterns = len(pattern_rows)
     total_emotions = len(emotion_rows)
     total_themes = len(themes_rows)
@@ -237,7 +233,7 @@ def get_dashboard_payload() -> dict[str, Any]:
     }
 
 
-def get_people_overview_payload() -> dict[str, Any]:
+def get_people_overview_payload(user_id: str | None = None) -> dict[str, Any]:
     _init()
     from .agent import _conn
 
@@ -257,8 +253,11 @@ def get_people_overview_payload() -> dict[str, Any]:
             },
         }
 
+    uid = {"user_id": user_id}
+
     people_rows = _conn.query(
-        "SELECT id, name, relationship, description, occurrences, first_seen, last_seen FROM person ORDER BY occurrences DESC"
+        "SELECT id, name, relationship, description, occurrences, first_seen, last_seen FROM person WHERE user_id = $user_id ORDER BY occurrences DESC",
+        uid,
     )
     if not people_rows or isinstance(people_rows, str):
         people_rows = []
@@ -306,19 +305,11 @@ def get_people_overview_payload() -> dict[str, Any]:
             trigger_key = trigger_name.lower()
 
             if trigger_key not in trigger_map:
-                trigger_map[trigger_key] = {
-                    "name": trigger_name,
-                    "category": trigger_category,
-                    "links": 0,
-                }
+                trigger_map[trigger_key] = {"name": trigger_name, "category": trigger_category, "links": 0}
             trigger_map[trigger_key]["links"] += 1
 
             if trigger_key not in trigger_pattern_counts:
-                trigger_pattern_counts[trigger_key] = {
-                    "name": trigger_name,
-                    "category": trigger_category,
-                    "links": 0,
-                }
+                trigger_pattern_counts[trigger_key] = {"name": trigger_name, "category": trigger_category, "links": 0}
             trigger_pattern_counts[trigger_key]["links"] += 1
 
         triggered_patterns = sorted(trigger_map.values(), key=lambda item: (-item["links"], item["name"].lower()))
@@ -339,12 +330,8 @@ def get_people_overview_payload() -> dict[str, Any]:
     people_payload.sort(key=lambda item: (-item["occurrences"], item["name"].lower()))
     relationship_mix = sorted(
         (
-            {
-                "relationship": relationship,
-                "people_count": counts["people_count"],
-                "mentions": counts["mentions"],
-            }
-            for relationship, counts in relationship_counts.items()
+            {"relationship": rel, "people_count": counts["people_count"], "mentions": counts["mentions"]}
+            for rel, counts in relationship_counts.items()
         ),
         key=lambda item: (-item["mentions"], item["relationship"]),
     )
@@ -385,14 +372,17 @@ def get_people_overview_payload() -> dict[str, Any]:
     }
 
 
-def get_reflections() -> list[dict[str, Any]]:
+def get_reflections(user_id: str | None = None) -> list[dict[str, Any]]:
     _init()
     from .agent import _conn
 
     if _conn is None:
         return []
 
-    rows = _conn.query("SELECT id, text, daily_prompt, source, created_at FROM reflection ORDER BY created_at DESC")
+    rows = _conn.query(
+        "SELECT id, text, daily_prompt, source, created_at FROM reflection WHERE user_id = $user_id ORDER BY created_at DESC",
+        {"user_id": user_id},
+    )
     if not rows or isinstance(rows, str):
         return []
 

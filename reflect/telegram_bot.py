@@ -9,9 +9,17 @@ from telegram import Update
 from telegram.error import Conflict
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
+from .agent import _init, build_reflection_graph, get_conn_and_vector_store
+from .auth import (
+    get_user_by_telegram_id,
+    link_telegram_to_user,
+    login_user,
+    register_user_from_telegram,
+)
 from .chat_agent import build_chat_agent
-from .agent import _init, build_reflection_graph
 from .db import get_connection
+from .graph_store import make_graph_tools
+from .service import run_reflection_pipeline, run_chat
 
 load_dotenv()
 
@@ -23,104 +31,222 @@ logger = logging.getLogger(__name__)
 
 # ── Initialize shared resources once ──
 _init()
-chat_agent = build_chat_agent()
 reflection_graph = build_reflection_graph()
 _conn = get_connection()
 
-# Track users waiting to submit a reflection
+# ── Per-user state ──
+# Tracks users in the middle of /reflect or registration/link flows
 _pending_reflect: set[int] = set()
 _stopping_for_conflict = False
 
+# Registration flow states: {telegram_id: {"step": "email"|"password", "email": str}}
+_reg_flow: dict[int, dict] = {}
 
-# ── Handlers ──
+# Link flow states: {telegram_id: {"step": "email"|"password", "email": str}}
+_link_flow: dict[int, dict] = {}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+# ── Helpers ──
+
+def _get_user_id(telegram_id: int) -> str | None:
+    return get_user_by_telegram_id(_conn, telegram_id)
+
+
+def _build_chat_agent_for(user_id: str):
+    conn, vector_store = get_conn_and_vector_store()
+    _, chat_tools = make_graph_tools(conn, vector_store, user_id=user_id)
+    return build_chat_agent(chat_tools)
+
+
+async def _require_auth(update: Update) -> str | None:
+    """Return user_id if authenticated, else prompt registration and return None."""
+    user_id = _get_user_id(update.effective_user.id)
+    if user_id:
+        return user_id
     await update.message.reply_text(
-        "Welcome to *ReflectGraph* 🌱\n\n"
-        "I'm your personal reflection coach. I track your emotional patterns over time using a knowledge graph.\n\n"
-        "Just send me anything that's on your mind and I'll help you understand your patterns.\n\n"
-        "*Commands:*\n"
-        "• /reflect — submit a journal entry to analyze & save to your graph\n"
-        "• /cancel — go back to chat mode\n\n"
-        "*Or just ask me anything:*\n"
-        "• _What patterns do I repeat most?_\n"
-        "• _Why do I always feel anxious?_\n"
-        "• _What does my inner critic do?_",
+        "Welcome to *synapse*.\n\n"
+        "You don't have an account yet. Send me your *email address* to create one, "
+        "or use /link if you already have a web account.",
         parse_mode="Markdown",
     )
+    _reg_flow[update.effective_user.id] = {"step": "email"}
+    return None
+
+
+# ── Command handlers ──
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = _get_user_id(update.effective_user.id)
+    if user_id:
+        await update.message.reply_text(
+            "Welcome back to *synapse*.\n\n"
+            "Send me a voice note or text to reflect, or ask me anything about your patterns.\n\n"
+            "• /reflect — submit a journal entry\n"
+            "• /cancel — go back to chat mode\n"
+            "• /link — link this Telegram to a different account",
+            parse_mode="Markdown",
+        )
+        await register_nudge(update, context)
+    else:
+        await update.message.reply_text(
+            "Welcome to *synapse* — your personal reflection coach.\n\n"
+            "Let's get you set up. Send me your *email address* to create an account, "
+            "or use /link if you already have a web account.",
+            parse_mode="Markdown",
+        )
+        _reg_flow[update.effective_user.id] = {"step": "email"}
 
 
 async def reflect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ask the user to send their reflection text."""
-    user_id = update.effective_user.id
-    _pending_reflect.add(user_id)
+    user_id = await _require_auth(update)
+    if not user_id:
+        return
+    _pending_reflect.add(update.effective_user.id)
     await update.message.reply_text(
-        "What's on your mind? Send me your reflection and I'll analyze it, extract patterns, and save it to your graph.\n\n"
+        "What's on your mind? Send me your reflection and I'll analyze it and save it to your graph.\n\n"
         "_Send /cancel to go back to chat mode._",
         parse_mode="Markdown",
     )
 
 
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    _pending_reflect.discard(user_id)
-    await update.message.reply_text("Cancelled. Back to chat mode — ask me anything about your patterns.")
+    tid = update.effective_user.id
+    _pending_reflect.discard(tid)
+    _reg_flow.pop(tid, None)
+    _link_flow.pop(tid, None)
+    await update.message.reply_text("Cancelled. Send me anything to chat about your patterns.")
 
+
+async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Link this Telegram account to an existing web account."""
+    _link_flow[update.effective_user.id] = {"step": "email"}
+    await update.message.reply_text(
+        "Send me the *email* for your existing synapse web account.",
+        parse_mode="Markdown",
+    )
+
+
+# ── Registration flow handler ──
+
+async def _handle_registration(update: Update, text: str) -> bool:
+    """Handle multi-step registration. Returns True if we consumed the message."""
+    tid = update.effective_user.id
+    state = _reg_flow.get(tid)
+    if not state:
+        return False
+
+    if state["step"] == "email":
+        _reg_flow[tid] = {"step": "password", "email": text.strip()}
+        await update.message.reply_text(
+            "Got it. Now send me a *password* (at least 6 characters).",
+            parse_mode="Markdown",
+        )
+        return True
+
+    if state["step"] == "password":
+        email = state["email"]
+        password = text.strip()
+        _reg_flow.pop(tid, None)
+        try:
+            result = register_user_from_telegram(_conn, email, password, tid)
+            await update.message.reply_text(
+                f"Account created for *{result['email']}*.\n\n"
+                "You're all set! Send me a voice note or text to start reflecting.",
+                parse_mode="Markdown",
+            )
+        except Exception as exc:
+            await update.message.reply_text(
+                f"Sorry, I couldn't create your account: {exc}\n\n"
+                "Try again with a different email, or use /link if you have an existing account."
+            )
+        return True
+
+    return False
+
+
+# ── Link flow handler ──
+
+async def _handle_link(update: Update, text: str) -> bool:
+    """Handle multi-step account linking. Returns True if we consumed the message."""
+    tid = update.effective_user.id
+    state = _link_flow.get(tid)
+    if not state:
+        return False
+
+    if state["step"] == "email":
+        _link_flow[tid] = {"step": "password", "email": text.strip()}
+        await update.message.reply_text("Now send your *password*.", parse_mode="Markdown")
+        return True
+
+    if state["step"] == "password":
+        email = state["email"]
+        password = text.strip()
+        _link_flow.pop(tid, None)
+        try:
+            result = login_user(_conn, email, password)
+            link_telegram_to_user(_conn, result["user_id"], tid)
+            await update.message.reply_text(
+                f"Linked! Your Telegram is now connected to *{result['email']}*.",
+                parse_mode="Markdown",
+            )
+        except Exception as exc:
+            await update.message.reply_text(f"Couldn't link: {exc}. Try /link again.")
+        return True
+
+    return False
+
+
+# ── Main text message handler ──
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
+    tid = update.effective_user.id
     text = update.message.text
+
+    # Registration and link flows take priority
+    if await _handle_registration(update, text):
+        return
+    if await _handle_link(update, text):
+        return
+
+    user_id = await _require_auth(update)
+    if not user_id:
+        return
 
     await update.message.chat.send_action("typing")
 
-    # If user is in reflect mode, run the full pipeline
-    if user_id in _pending_reflect:
-        _pending_reflect.discard(user_id)
+    # Reflect mode
+    if tid in _pending_reflect:
+        _pending_reflect.discard(tid)
         await update.message.reply_text("Analyzing your reflection... this takes 20-30 seconds.")
         await update.message.chat.send_action("typing")
 
         count = context.user_data.get("reflection_count", 0) + 1
         context.user_data["reflection_count"] = count
-        config = {"configurable": {"thread_id": f"tg-reflect-{user_id}-{count}"}}
+        config_thread = f"tg-reflect-{tid}-{count}"
 
         result = reflection_graph.invoke(
-            {"reflection_text": text, "daily_prompt": None, "source": "telegram_text", "messages": []},
-            config=config,
+            {"reflection_text": text, "daily_prompt": None, "source": "telegram_text", "user_id": user_id, "messages": []},
+            config={"configurable": {"thread_id": config_thread}},
         )
-
-        extracted = result.get("extracted", {})
-        patterns = [p["name"] for p in extracted.get("patterns", [])]
-        emotions = [e["name"] for e in extracted.get("emotions", [])]
-        insights = result.get("insights", "")
-        questions = result.get("follow_up_questions", [])
-
-        response = ""
-        if patterns:
-            response += f"*Patterns:* {', '.join(patterns)}\n"
-        if emotions:
-            response += f"*Emotions:* {', '.join(emotions)}\n"
-        if insights:
-            response += f"\n*Insights:*\n{insights}\n"
-        if questions:
-            response += "\n*Reflect on:*\n" + "\n".join(f"• {q}" for q in questions)
-
-        await update.message.reply_text(response or "Reflection saved!", parse_mode="Markdown")
+        await _send_reflection_result(update, result, text)
         return
 
-    # Otherwise: chat mode
-    config = {"configurable": {"thread_id": f"tg-{user_id}"}}
-    result = chat_agent.invoke(
-        {"messages": [HumanMessage(content=text)]},
-        config=config,
-    )
-    answer = result["messages"][-1].content
-    await update.message.reply_text(answer)
+    # Chat mode
+    raw = run_chat(message=text, thread_id=f"tg-{tid}", user_id=user_id)
+    messages = raw.get("messages", [])
+    answer = next((m["content"] for m in reversed(messages) if m.get("role") in ("ai", "assistant")), "")
+    await update.message.reply_text(answer or "I couldn't find an answer.")
 
 
 # ── Voice handler ──
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
+    tid = update.effective_user.id
+
+    user_id = await _require_auth(update)
+    if not user_id:
+        return
+
     await update.message.chat.send_action("typing")
     await update.message.reply_text("Got your voice note! Transcribing...")
 
@@ -131,7 +257,6 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     try:
         await voice_file.download_to_drive(tmp_path)
-
         openai_client = OpenAI()
         with open(tmp_path, "rb") as audio:
             transcription = openai_client.audio.transcriptions.create(
@@ -139,7 +264,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 file=audio,
             )
         text = transcription.text
-        logger.info("Voice transcription for user %s: %s", user_id, text)
+        logger.info("Voice transcription for user %s: %s", tid, text)
     finally:
         os.remove(tmp_path)
 
@@ -148,21 +273,23 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     count = context.user_data.get("reflection_count", 0) + 1
     context.user_data["reflection_count"] = count
-    config = {"configurable": {"thread_id": f"tg-reflect-{user_id}-{count}"}}
 
     result = reflection_graph.invoke(
-        {"reflection_text": text, "daily_prompt": None, "source": "voice", "messages": []},
-        config=config,
+        {"reflection_text": text, "daily_prompt": None, "source": "voice", "user_id": user_id, "messages": []},
+        config={"configurable": {"thread_id": f"tg-reflect-{tid}-{count}"}},
     )
+    await _send_reflection_result(update, result, text)
 
+
+async def _send_reflection_result(update: Update, result: dict, original_text: str) -> None:
     extracted = result.get("extracted", {})
     patterns = [p["name"] for p in extracted.get("patterns", [])]
     emotions = [e["name"] for e in extracted.get("emotions", [])]
     insights = result.get("insights", "")
     questions = result.get("follow_up_questions", [])
 
-    snippet = text[:120] + ("..." if len(text) > 120 else "")
-    response = f"I've transcribed your voice note and added it to your graph. Here is what I heard: _{snippet}_\n\n"
+    snippet = original_text[:120] + ("..." if len(original_text) > 120 else "")
+    response = f"_\"{snippet}\"_\n\n"
     if patterns:
         response += f"*Patterns:* {', '.join(patterns)}\n"
     if emotions:
@@ -172,27 +299,31 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if questions:
         response += "\n*Reflect on:*\n" + "\n".join(f"• {q}" for q in questions)
 
-    await update.message.reply_text(response, parse_mode="Markdown")
+    await update.message.reply_text(response or "Reflection saved!", parse_mode="Markdown")
 
 
 # ── Nudge job ──
 
 async def daily_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = context.job.chat_id
+    tid = context.job.data.get("telegram_id")
+    user_id = get_user_by_telegram_id(_conn, tid) if tid else None
 
-    # Get most frequent IFS part
+    if not user_id:
+        return
+
     ifs_parts = _conn.query(
-        "SELECT name, role, description FROM ifs_part ORDER BY occurrences DESC LIMIT 1"
+        "SELECT name, role, description FROM ifs_part WHERE user_id = $user_id ORDER BY occurrences DESC LIMIT 1",
+        {"user_id": user_id},
     )
-    # Get most frequent schema
     schemas = _conn.query(
-        "SELECT name, domain, description FROM schema_pattern ORDER BY occurrences DESC LIMIT 1"
+        "SELECT name, domain, description FROM schema_pattern WHERE user_id = $user_id ORDER BY occurrences DESC LIMIT 1",
+        {"user_id": user_id},
     )
 
     if not ifs_parts and not schemas:
-        return  # No data yet, skip nudge
+        return
 
-    # Pick whichever has data, prefer IFS part
     if ifs_parts and not isinstance(ifs_parts, str):
         subject = f"IFS part: '{ifs_parts[0]['name']}' ({ifs_parts[0]['role']}) — {ifs_parts[0]['description']}"
     elif schemas and not isinstance(schemas, str):
@@ -211,26 +342,21 @@ async def daily_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def register_nudge(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Register the current chat for nudges. Called automatically on /start via job_queue."""
     chat_id = update.effective_chat.id
-    # Remove any existing job for this chat to avoid duplicates
-    current_jobs = context.job_queue.get_jobs_by_name(f"nudge-{chat_id}")
-    for job in current_jobs:
+    tid = update.effective_user.id
+    for job in context.job_queue.get_jobs_by_name(f"nudge-{chat_id}"):
         job.schedule_removal()
-
     context.job_queue.run_repeating(
         daily_nudge,
-        interval=6 * 3600,  # every 6 hours
-        first=10,            # first nudge 10 seconds after /start
+        interval=6 * 3600,
+        first=10,
         chat_id=chat_id,
         name=f"nudge-{chat_id}",
+        data={"telegram_id": tid},
     )
 
 
-async def start_with_nudge(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await start(update, context)
-    await register_nudge(update, context)
-
+# ── Error handler ──
 
 async def handle_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     global _stopping_for_conflict
@@ -238,13 +364,9 @@ async def handle_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> No
         if _stopping_for_conflict:
             return
         _stopping_for_conflict = True
-        logger.error(
-            "Telegram polling conflict detected (another bot instance is running). "
-            "Stopping this process to avoid repeated 409 errors."
-        )
+        logger.error("Telegram polling conflict — stopping this process.")
         context.application.stop_running()
         return
-
     logger.exception("Unhandled Telegram bot error", exc_info=context.error)
 
 
@@ -254,9 +376,10 @@ def main() -> None:
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     app = Application.builder().token(token).build()
 
-    app.add_handler(CommandHandler("start", start_with_nudge))
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reflect", reflect_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
+    app.add_handler(CommandHandler("link", link_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_error_handler(handle_error)

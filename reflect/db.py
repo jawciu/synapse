@@ -135,6 +135,31 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD description ON reminds_of TYPE string""",
     """DEFINE TABLE feels_in_body TYPE RELATION IN reflection OUT body_signal""",
 
+    # ── Multi-user: app_user and reset_token tables ──
+    """DEFINE TABLE app_user SCHEMAFULL""",
+    """DEFINE FIELD email ON app_user TYPE string""",
+    """DEFINE FIELD password_hash ON app_user TYPE string""",
+    """DEFINE FIELD telegram_id ON app_user TYPE option<int>""",
+    """DEFINE FIELD created_at ON app_user TYPE datetime DEFAULT time::now()""",
+    """DEFINE INDEX IF NOT EXISTS app_user_email_idx ON app_user FIELDS email UNIQUE""",
+    """DEFINE INDEX IF NOT EXISTS app_user_telegram_idx ON app_user FIELDS telegram_id""",
+
+    """DEFINE TABLE reset_token SCHEMAFULL""",
+    """DEFINE FIELD user_id ON reset_token TYPE string""",
+    """DEFINE FIELD token ON reset_token TYPE string""",
+    """DEFINE FIELD expires_at ON reset_token TYPE datetime""",
+    """DEFINE INDEX IF NOT EXISTS reset_token_idx ON reset_token FIELDS token UNIQUE""",
+
+    # ── user_id field on every data table ──
+    """DEFINE FIELD user_id ON reflection TYPE option<string>""",
+    """DEFINE FIELD user_id ON pattern TYPE option<string>""",
+    """DEFINE FIELD user_id ON theme TYPE option<string>""",
+    """DEFINE FIELD user_id ON emotion TYPE option<string>""",
+    """DEFINE FIELD user_id ON ifs_part TYPE option<string>""",
+    """DEFINE FIELD user_id ON schema_pattern TYPE option<string>""",
+    """DEFINE FIELD user_id ON person TYPE option<string>""",
+    """DEFINE FIELD user_id ON body_signal TYPE option<string>""",
+
     # HNSW indexes for graph node embeddings
     f"""DEFINE INDEX IF NOT EXISTS pattern_embedding_idx ON pattern FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
     f"""DEFINE INDEX IF NOT EXISTS theme_embedding_idx ON theme FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",

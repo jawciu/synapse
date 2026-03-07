@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type SVGProps } from "react";
 import Markdown from "react-markdown";
+import AuthPage from "./pages/AuthPage";
 import {
   Bar,
   BarChart,
@@ -314,6 +315,26 @@ function buildPromptDraft(prompt: string): string {
 }
 
 function App() {
+  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem("synapse_token"));
+  const [authEmail, setAuthEmail] = useState<string | null>(() => localStorage.getItem("synapse_email"));
+
+  const handleAuth = (result: { user_id: string; email: string; token: string }) => {
+    localStorage.setItem("synapse_token", result.token);
+    localStorage.setItem("synapse_email", result.email);
+    setAuthToken(result.token);
+    setAuthEmail(result.email);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("synapse_token");
+    localStorage.removeItem("synapse_email");
+    setAuthToken(null);
+    setAuthEmail(null);
+  };
+
+  const authHeaders = (): Record<string, string> =>
+    authToken ? { Authorization: `Bearer ${authToken}` } : {};
+
   const [activeTab, setActiveTab] = useState<View>("reflect");
   const [dailyPrompt, setDailyPrompt] = useState("");
   const [reflectionText, setReflectionText] = useState("");
@@ -341,13 +362,14 @@ function App() {
   const [reflectionsQuery, setReflectionsQuery] = useState("");
 
   useEffect(() => {
+    if (!authToken) return;
     const initialize = async () => {
       await fetchPrompt();
       await fetchDashboard();
     };
 
     initialize();
-  }, []);
+  }, [authToken]);
 
   useEffect(() => {
     const tick = () => setLiveTime(new Date());
@@ -360,7 +382,7 @@ function App() {
 
   const fetchPrompt = async () => {
     try {
-      const promptResp = await fetch(`${API_URL}/api/daily-prompt`);
+      const promptResp = await fetch(`${API_URL}/api/daily-prompt`, { headers: authHeaders() });
       const promptJson = (await promptResp.json()) as { prompt?: string };
       setDailyPrompt(promptJson.prompt || "");
     } catch {
@@ -370,7 +392,7 @@ function App() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/dashboard?limit=8`);
+      const res = await fetch(`${API_URL}/api/dashboard?limit=8`, { headers: authHeaders() });
       const payload = (await res.json()) as DashboardPayload;
       setDashboard(payload);
     } catch {
@@ -397,7 +419,7 @@ function App() {
     setSourcesBusy(true);
     setSourcesError("");
     try {
-      const response = await fetch(`${API_URL}/api/reflections`);
+      const response = await fetch(`${API_URL}/api/reflections`, { headers: authHeaders() });
       const payload = (await response.json()) as ReflectionSource[] | { detail?: string };
       if (!response.ok) {
         const errorMessage = (payload as { detail?: string }).detail;
@@ -427,7 +449,7 @@ function App() {
     setPeopleBusy(true);
     setPeopleError("");
     try {
-      const response = await fetch(`${API_URL}/api/people`);
+      const response = await fetch(`${API_URL}/api/people`, { headers: authHeaders() });
       const payload = (await response.json()) as PeopleOverviewPayload | { detail?: string };
       if (!response.ok) {
         const errorMessage = (payload as { detail?: string }).detail;
@@ -479,7 +501,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/reflection`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           reflection_text: reflectionText,
           daily_prompt: dailyPrompt || null,
@@ -526,7 +548,7 @@ function App() {
       const thread = chatThread ?? `chat-${Date.now()}`;
       const response = await fetch(`${API_URL}/api/chat/stream`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({ message: userMessage.content, thread_id: thread }),
       });
 
@@ -667,6 +689,10 @@ function App() {
     return peopleOverview.top_trigger_patterns.slice(0, 12);
   }, [peopleOverview]);
 
+  if (!authToken) {
+    return <AuthPage onAuth={handleAuth} />;
+  }
+
   return (
     <div className="app-shell">
       <main className="content">
@@ -703,6 +729,12 @@ function App() {
               minute: "2-digit",
               second: "2-digit",
             })}
+          </div>
+          <div className="menubar-user">
+            {authEmail && <span className="menubar-email">{authEmail}</span>}
+            <button type="button" className="menubar-logout" onClick={handleLogout}>
+              log out
+            </button>
           </div>
         </header>
 
