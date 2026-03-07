@@ -29,6 +29,13 @@ Start chat: [@synapse_helper_bot](https://t.me/synapse_helper_bot)
 4. Or send a voice note; Synapse transcribes it and runs the same reflection pipeline.
 5. If you already have a web account, use `/link` to connect Telegram to that account.
 
+### Cross-channel account flow (important)
+
+1. **Website first (recommended):** create your account on web, then open Telegram and run `/link` with the same credentials.
+2. **Telegram first:** create account in-bot (email + password), then log into web with the same credentials.
+3. In both cases, web + Telegram activity lands in the same user graph when you use the same account.
+4. Avoid creating separate accounts with different emails, or your history will be split.
+
 ---
 
 ## Why this project exists
