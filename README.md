@@ -77,6 +77,21 @@ Synapse includes explicit safety and reliability guardrails across prompts and r
 
 ---
 
+## Data security and access controls
+
+User data is stored and accessed with layered controls in the current implementation:
+
+- **Password security:** user passwords are hashed with `bcrypt` (never stored in plaintext).
+- **Token-based access:** protected endpoints require signed JWT bearer tokens.
+- **User-scoped data access:** reflection and graph queries are filtered by `user_id` to isolate each account's data.
+- **Account integrity controls:** user email has a unique index, and password reset tokens are unique with 1-hour expiry.
+- **Telegram linking control:** Telegram accounts are linked through explicit credential verification (`/link`) or in-bot account creation.
+- **Secrets-based configuration:** database/API credentials are loaded from environment variables rather than hardcoded.
+
+For production deployments, set a strong `JWT_SECRET`, enforce secure environment management, and apply your platform/network security policies.
+
+---
+
 ## What Synapse does today
 
 - Ingests reflections through a 6-node LangGraph pipeline
@@ -274,13 +289,6 @@ Synapse uses SurrealDB as both:
 - Reflection documents are embedded for semantic recall.
 - Core graph node tables are embedded for semantic graph lookup.
 - SurrealDB v3 vector behavior is patched in `reflect/db.py` for HNSW + cosine KNN compatibility with `langchain-surrealdb`.
-
----
-
-## Project docs
-
-- Pitch + demo playbook: [`pitch/PITCH_PLAYBOOK.md`](pitch/PITCH_PLAYBOOK.md)
-- Architecture deep dive: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 

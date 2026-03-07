@@ -73,7 +73,7 @@ What is not present:
 ## Repo map
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
-- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, and local runbook
+- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, data-security/access-control detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, and local runbook
 - [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
 - [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): live demo script, 2-minute video plan, and pitch execution checklist
 - [.claude/skills/](/Users/ian/dev/synapse/.claude/skills): local agent skills in agentskills.io format (`langchain`, `surrealdb`, `vite-typescript`, `python`)
