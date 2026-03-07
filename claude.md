@@ -35,6 +35,8 @@ The repo is small but mostly complete as a demo:
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
 - SurrealDB startup now validates required env vars with clear `RuntimeError` messages; namespace/database default to `main` when unset and also accept `SURREAL_NAMESPACE` / `SURREAL_DATABASE` aliases.
 - Render Blueprint config exists in `render.yaml` for backend (`synapse-backend`), Telegram worker (`synapse-telegram`), and static frontend (`synapse-frontend`) with `autoDeploy: true` on `main`.
+- Public frontend demo is currently available at `https://synapse-frontend-vdmo.onrender.com/`.
+- Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
 - Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
@@ -70,9 +72,10 @@ What is not present:
 ## Repo map
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
-- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with architecture narrative and local runbook
+- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, Telegram text/voice usage, architecture narrative, and local runbook
 - [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
 - [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): live demo script, 2-minute video plan, and pitch execution checklist
+- [.claude/skills/](/Users/ian/dev/synapse/.claude/skills): local agent skills in agentskills.io format (`langchain`, `surrealdb`, `vite-typescript`, `python`)
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml): dependencies and Python version
 - [render.yaml](/Users/ian/dev/synapse/render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`
 - [main.py](/Users/ian/dev/synapse/main.py): simple OpenAI smoke test, not the product entrypoint
@@ -678,6 +681,10 @@ This file was written after reading:
 - [ARCHITECTURE.md](/Users/ian/dev/synapse/ARCHITECTURE.md)
 - [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md)
 - [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md)
+- [.claude/skills/langchain/SKILL.md](/Users/ian/dev/synapse/.claude/skills/langchain/SKILL.md)
+- [.claude/skills/surrealdb/SKILL.md](/Users/ian/dev/synapse/.claude/skills/surrealdb/SKILL.md)
+- [.claude/skills/vite-typescript/SKILL.md](/Users/ian/dev/synapse/.claude/skills/vite-typescript/SKILL.md)
+- [.claude/skills/python/SKILL.md](/Users/ian/dev/synapse/.claude/skills/python/SKILL.md)
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml)
 - [render.yaml](/Users/ian/dev/synapse/render.yaml)
 - [api_server.py](/Users/ian/dev/synapse/api_server.py)

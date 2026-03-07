@@ -5,6 +5,28 @@
 Synapse is a memory-first reflection agent built for the London LangChain x SurrealDB Hackathon.
 It turns unstructured reflections into a persistent knowledge graph, then answers questions from that evolving graph context.
 
+Public demo: [synapse-frontend-vdmo.onrender.com](https://synapse-frontend-vdmo.onrender.com/)
+
+---
+
+## User quickstart (2 minutes)
+
+### Web app
+
+1. Open the public demo: [synapse-frontend-vdmo.onrender.com](https://synapse-frontend-vdmo.onrender.com/)
+2. Create an account (or log in).
+3. Go to `reflect`, write a short reflection, and press `reflect`.
+4. Review extracted patterns, emotions, themes, and follow-up questions.
+5. Switch to `talk` and ask a question like: `What pattern shows up most when I mention work feedback?`
+
+### Telegram (text + voice notes)
+
+1. Message the Synapse Telegram bot (for deployments where the bot is enabled).
+2. First-time setup is inline: share email + password when prompted.
+3. Send a text reflection and get analysis back in chat.
+4. Or send a voice note; Synapse transcribes it and runs the same reflection pipeline.
+5. If you already have a web account, use `/link` to connect Telegram to that account.
+
 ---
 
 ## Why this project exists
@@ -29,7 +51,17 @@ Synapse is built to solve that:
 - Ships as a full app surface:
   - React web app (`reflect` + `talk`)
   - FastAPI backend
-  - Telegram bot (text + voice note ingestion)
+  - Telegram bot where users can reflect by text or voice note
+
+---
+
+## Telegram integration (write or speak your reflections)
+
+Synapse is intentionally multichannel. Reflection capture is not limited to the web UI.
+
+- **Text reflections in Telegram:** send your reflection as a message and Synapse returns extracted patterns, emotions, insights, and follow-up prompts.
+- **Voice-note reflections in Telegram:** send a voice note, Synapse transcribes it with `whisper-1`, then runs the same LangGraph reflection pipeline.
+- **Shared memory model:** Telegram and web reflections land in the same user-scoped SurrealDB graph, so context compounds across channels.
 
 ---
 

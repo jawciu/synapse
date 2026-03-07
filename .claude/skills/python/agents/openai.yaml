@@ -1,0 +1,4 @@
+interface:
+  display_name: "Python Backend Engineering"
+  short_description: "Deliver robust typed Python services"
+  default_prompt: "Use $python to implement this backend change with strong typing, explicit error handling, and clean service boundaries."

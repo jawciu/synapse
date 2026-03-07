@@ -1,0 +1,4 @@
+interface:
+  display_name: "LangChain Agent Systems"
+  short_description: "Build reliable LangChain and LangGraph flows"
+  default_prompt: "Use $langchain to design or refactor this agent workflow with clear state, tool contracts, and observability."

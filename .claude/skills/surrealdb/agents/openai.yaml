@@ -1,0 +1,4 @@
+interface:
+  display_name: "SurrealDB Knowledge Graph"
+  short_description: "Model and query graph plus vector memory"
+  default_prompt: "Use $surrealdb to design or refine this schema and query path for graph traversal, hybrid search, and user-safe persistence."

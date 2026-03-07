@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vite TypeScript Frontend"
+  short_description: "Ship robust Vite React TypeScript UI"
+  default_prompt: "Use $vite-typescript to implement this UI flow with typed API boundaries, resilient states, and production-ready UX behavior."
