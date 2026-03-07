@@ -31,7 +31,7 @@ Public demo: [synapse-frontend-vdmo.onrender.com](https://synapse-frontend-vdmo.
 4. Review extracted patterns, emotions, themes, and follow-up questions.
 5. Switch to `talk` and ask a question like: `What pattern shows up most when I mention work feedback?`
 
-> Behind the scenes, your reflection runs through a 6-node LangGraph pipeline — extraction, graph storage, vector embedding, insight generation, and more. This can take 15-30 seconds on the first run, so grab a coffee and let it work its magic.
+> Behind the scenes, your reflection runs through a 6-node LangGraph pipeline — extraction, graph storage, vector embedding, insight generation, and more. This can take 15-30 seconds on the first run, so take a mindful moment and let it work its magic.
 
 ### Telegram (text + voice notes)
 
