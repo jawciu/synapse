@@ -114,6 +114,40 @@ def upsert_emotion(conn: Surreal, name: str, valence: str, intensity: float) -> 
     return str(result[0]["id"])
 
 
+@traceable(run_type="tool", name="upsert_person")
+def upsert_person(conn: Surreal, name: str, relationship: str, description: str) -> str:
+    result = conn.query(
+        """UPDATE person SET
+            name = $name,
+            relationship = $relationship,
+            description = $description,
+            occurrences += 1,
+            last_seen = time::now()
+        WHERE name = $name""",
+        {"name": name, "relationship": relationship, "description": description},
+    )
+    if not result or isinstance(result, str):
+        result = conn.query(
+            "CREATE person SET name = $name, relationship = $relationship, description = $description, occurrences = 1",
+            {"name": name, "relationship": relationship, "description": description},
+        )
+    return str(result[0]["id"])
+
+
+@traceable(run_type="tool", name="upsert_body_signal")
+def upsert_body_signal(conn: Surreal, name: str, location: str) -> str:
+    result = conn.query(
+        "UPDATE body_signal SET name = $name, location = $location, occurrences += 1 WHERE name = $name",
+        {"name": name, "location": location},
+    )
+    if not result or isinstance(result, str):
+        result = conn.query(
+            "CREATE body_signal SET name = $name, location = $location, occurrences = 1",
+            {"name": name, "location": location},
+        )
+    return str(result[0]["id"])
+
+
 @traceable(run_type="tool", name="create_edges")
 def create_edges(
     conn: Surreal,
@@ -124,6 +158,8 @@ def create_edges(
     extracted: dict,
     ifs_part_ids: list[str] | None = None,
     schema_ids: list[str] | None = None,
+    person_ids: list[str] | None = None,
+    body_signal_ids: list[str] | None = None,
 ):
     """Create all graph edges for a reflection."""
     # reflection -> reveals -> pattern
@@ -178,6 +214,19 @@ def create_edges(
     for part_id in (ifs_part_ids or []):
         for sid in (schema_ids or []):
             conn.query(f"RELATE {part_id}->protects_against->{sid}")
+
+    # reflection -> mentions -> person
+    for pid in (person_ids or []):
+        conn.query(f"RELATE {reflection_id}->mentions->{pid}")
+
+    # person -> triggers_pattern -> pattern (link people to patterns they trigger)
+    for pid in (person_ids or []):
+        for pat_id in pattern_ids:
+            conn.query(f"RELATE {pid}->triggers_pattern->{pat_id}")
+
+    # reflection -> feels_in_body -> body_signal
+    for bid in (body_signal_ids or []):
+        conn.query(f"RELATE {reflection_id}->feels_in_body->{bid}")
 
 
 # ──────────────────────────────────────────────
@@ -429,12 +478,76 @@ def make_graph_tools(conn: Surreal, vector_store):
             "linked_schemas": schemas if schemas and not isinstance(schemas, str) else [],
         }, default=str)
 
+    @tool
+    def get_people_overview() -> str:
+        """Get all people mentioned across reflections — who they are, their relationship to the user, and what patterns they trigger. Use this for questions about relationships, specific people, or interpersonal dynamics."""
+        people = conn.query(
+            "SELECT name, relationship, description, occurrences FROM person ORDER BY occurrences DESC"
+        )
+        if not people or isinstance(people, str):
+            return "No people identified yet."
+        for p in people:
+            # What patterns does this person trigger?
+            triggered = conn.query(
+                """SELECT ->triggers_pattern->pattern.name AS patterns
+                   FROM person WHERE name = $name""",
+                {"name": p["name"]},
+            )
+            p["triggers_patterns"] = triggered[0].get("patterns", []) if triggered and not isinstance(triggered, str) else []
+            # Source reflections mentioning this person
+            refs = conn.query(
+                """SELECT <-mentions<-reflection.text AS reflections
+                   FROM person WHERE name = $name""",
+                {"name": p["name"]},
+            )
+            p["source_reflections"] = refs[0].get("reflections", []) if refs and not isinstance(refs, str) else []
+        return json.dumps(people, default=str)
+
+    @tool
+    def get_person_deep_dive(person_name: str) -> str:
+        """Deep dive into a specific person — what patterns they trigger, what emotions come up around them, what IFS parts activate, and all reflections mentioning them. Use when the user asks about a specific relationship."""
+        refs = conn.query(
+            """SELECT <-mentions<-reflection.text AS reflections
+               FROM person WHERE name = $name""",
+            {"name": person_name},
+        )
+        patterns = conn.query(
+            """SELECT ->triggers_pattern->pattern[*].{name, category} AS patterns
+               FROM person WHERE name = $name""",
+            {"name": person_name},
+        )
+        # Emotions in reflections mentioning this person
+        emotions = conn.query(
+            """SELECT ->mentions->person[WHERE name = $name]<-mentions<-reflection->expresses->emotion[*].{name, valence} AS emotions
+               FROM person WHERE name = $name""",
+            {"name": person_name},
+        )
+        return json.dumps({
+            "person": person_name,
+            "reflections": refs[0].get("reflections", []) if refs and not isinstance(refs, str) else [],
+            "patterns_triggered": patterns[0].get("patterns", []) if patterns and not isinstance(patterns, str) else [],
+            "emotions": emotions[0].get("emotions", []) if emotions and not isinstance(emotions, str) else [],
+        }, default=str)
+
+    @tool
+    def get_body_signals_overview() -> str:
+        """Get all body signals/somatic markers detected across reflections. Use for questions about physical sensations, body awareness, or somatic patterns."""
+        signals = conn.query(
+            "SELECT name, location, occurrences FROM body_signal ORDER BY occurrences DESC"
+        )
+        if not signals or isinstance(signals, str):
+            return "No body signals detected yet."
+        return json.dumps(signals, default=str)
+
     extraction_tools = [retrieve_similar_reflections, get_existing_patterns]
     chat_tools = [
         get_all_patterns_overview,
         get_all_emotions_overview,
         get_ifs_parts_overview,
         get_schemas_overview,
+        get_people_overview,
+        get_person_deep_dive,
+        get_body_signals_overview,
         get_deep_pattern_analysis,
         get_graph_summary,
         get_emotion_triggers,

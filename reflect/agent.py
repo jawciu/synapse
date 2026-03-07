@@ -17,6 +17,8 @@ from .graph_store import (
     upsert_emotion,
     upsert_ifs_part,
     upsert_schema,
+    upsert_person,
+    upsert_body_signal,
     create_edges,
     query_co_occurrences,
     query_negative_emotion_triggers,
@@ -115,7 +117,17 @@ def update_graph(state: ReflectionState) -> dict:
         sid = upsert_schema(_conn, s["name"], s["domain"], s.get("coping_style", "none"), s["description"])
         schema_ids.append(sid)
 
-    create_edges(_conn, rid, pattern_ids, emotion_ids, theme_ids, extracted, ifs_part_ids, schema_ids)
+    person_ids = []
+    for p in extracted.get("people", []):
+        pid = upsert_person(_conn, p["name"], p["relationship"], p.get("description", ""))
+        person_ids.append(pid)
+
+    body_signal_ids = []
+    for b in extracted.get("body_signals", []):
+        bid = upsert_body_signal(_conn, b["name"], b.get("location", "other"))
+        body_signal_ids.append(bid)
+
+    create_edges(_conn, rid, pattern_ids, emotion_ids, theme_ids, extracted, ifs_part_ids, schema_ids, person_ids, body_signal_ids)
     return {}
 
 
@@ -154,9 +166,14 @@ def generate_insights(state: ReflectionState) -> dict:
 @traceable(run_type="chain", name="generate_followups")
 def generate_followups(state: ReflectionState) -> dict:
     llm = ChatOpenAI(model="gpt-4o", temperature=0.8)
-    patterns_str = json.dumps([p["name"] for p in state["extracted"].get("patterns", [])], default=str)
+    extracted = state["extracted"]
+    patterns_str = json.dumps([p["name"] for p in extracted.get("patterns", [])], default=str)
+    people_str = json.dumps([p["name"] for p in extracted.get("people", [])], default=str)
+    body_str = json.dumps([b["name"] for b in extracted.get("body_signals", [])], default=str)
     prompt_text = FOLLOWUP_PROMPT.format(
         patterns=patterns_str,
+        people=people_str,
+        body_signals=body_str,
         insights=state["insights"],
     )
     response = llm.invoke(prompt_text)

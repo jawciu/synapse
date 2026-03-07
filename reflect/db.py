@@ -104,10 +104,30 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD first_seen ON schema_pattern TYPE datetime DEFAULT time::now()""",
     """DEFINE FIELD last_seen ON schema_pattern TYPE datetime DEFAULT time::now()""",
 
+    # People
+    """DEFINE TABLE person SCHEMAFULL""",
+    """DEFINE FIELD name ON person TYPE string""",
+    """DEFINE FIELD relationship ON person TYPE string""",
+    """DEFINE FIELD description ON person TYPE string""",
+    """DEFINE FIELD occurrences ON person TYPE int DEFAULT 1""",
+    """DEFINE FIELD first_seen ON person TYPE datetime DEFAULT time::now()""",
+    """DEFINE FIELD last_seen ON person TYPE datetime DEFAULT time::now()""",
+
+    # Somatic markers
+    """DEFINE TABLE body_signal SCHEMAFULL""",
+    """DEFINE FIELD name ON body_signal TYPE string""",
+    """DEFINE FIELD location ON body_signal TYPE string""",
+    """DEFINE FIELD occurrences ON body_signal TYPE int DEFAULT 1""",
+
     # New edge types
     """DEFINE TABLE activates TYPE RELATION IN reflection OUT ifs_part""",
     """DEFINE TABLE triggers_schema TYPE RELATION IN reflection OUT schema_pattern""",
     """DEFINE TABLE protects_against TYPE RELATION IN ifs_part OUT schema_pattern""",
+    """DEFINE TABLE mentions TYPE RELATION IN reflection OUT person""",
+    """DEFINE TABLE triggers_pattern TYPE RELATION IN person OUT pattern""",
+    """DEFINE TABLE reminds_of TYPE RELATION IN person OUT person""",
+    """DEFINE FIELD description ON reminds_of TYPE string""",
+    """DEFINE TABLE feels_in_body TYPE RELATION IN reflection OUT body_signal""",
 ]
 
 
