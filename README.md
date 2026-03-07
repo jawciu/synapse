@@ -128,3 +128,34 @@ Optional:
 - `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`)
 - `LANGCHAIN_TRACING_V2`, `LANGCHAIN_PROJECT` (if tracing is enabled)
 - `TELEGRAM_BOT_TOKEN` (required for `just telegram` and `just dev-all`)
+- `JWT_SECRET` (random hex string used to sign auth tokens)
+
+## Auth
+
+All data endpoints require a JWT bearer token. Register or log in via the web UI at `http://localhost:5173` to get a token, which is stored in `localStorage` and sent automatically.
+
+Auth endpoints (no token required):
+
+- `POST /api/auth/register` — `{ email, password }` → `{ user_id, email, token }`
+- `POST /api/auth/login` — `{ email, password }` → `{ user_id, email, token }`
+- `POST /api/auth/reset-request` — `{ email }` → `{ reset_token }` (token returned in response, no email sent)
+- `POST /api/auth/reset-confirm` — `{ token, new_password }`
+
+## Telegram bot
+
+Start the bot with `just telegram`. On first contact from an unknown user the bot walks them through account creation inline:
+
+1. Bot asks for email
+2. User replies with their email
+3. Bot asks for password
+4. User replies with password → account created, `telegram_id` linked, reflection processed
+
+Subsequent messages are automatically identified by `telegram_id` — no login needed.
+
+**Linking an existing web account to Telegram**: send `/link` to the bot, then provide your email and password when prompted.
+
+**If you had data before auth was added**: run the migration script to assign all orphaned records to a new account:
+
+```bash
+uv run python migrate_orphans.py you@example.com yourpassword
+```
