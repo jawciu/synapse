@@ -204,7 +204,8 @@ def build_reflection_graph():
     builder.add_node("generate_followups", generate_followups)
 
     builder.add_edge(START, "store_reflection")
-    builder.add_edge("store_reflection", "extract_patterns")
+    builder.add_edge(START, "extract_patterns")
+    builder.add_edge("store_reflection", "update_graph")
     builder.add_edge("extract_patterns", "update_graph")
     builder.add_edge("update_graph", "query_graph")
     builder.add_edge("query_graph", "generate_insights")
