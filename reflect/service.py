@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import uuid
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
 
@@ -89,6 +91,30 @@ def run_chat(message: str, thread_id: str | None) -> dict[str, Any]:
         "thread_id": active_thread,
         "messages": [message.__dict__ for message in messages],
     }
+
+
+async def stream_chat(message: str, thread_id: str | None) -> AsyncGenerator[str, None]:
+    """Yield SSE events as the chat agent streams its response."""
+    chat_agent = _ensure_chat()
+    _init()
+    active_thread = _normalize_thread_id(thread_id, "chat-session")
+
+    yield f"data: {json.dumps({'type': 'thread_id', 'content': active_thread})}\n\n"
+
+    async for event in chat_agent.astream_events(
+        {"messages": [HumanMessage(content=message)]},
+        config={"configurable": {"thread_id": active_thread}},
+        version="v2",
+    ):
+        kind = event["event"]
+        if kind == "on_chat_model_stream":
+            # Only stream tokens from the final answer, not from tool-calling steps
+            chunk = event["data"]["chunk"]
+            token = chunk.content
+            if token and isinstance(token, str):
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 
 
 def get_dashboard_payload() -> dict[str, Any]:

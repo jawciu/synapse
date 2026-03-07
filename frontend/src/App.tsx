@@ -320,63 +320,86 @@ function App() {
       content: chatInput.trim(),
     };
 
-    const nextMessages = [...chatMessages, userMessage];
-    setChatMessages(nextMessages);
+    setChatMessages((previous) => [...previous, userMessage]);
     setChatInput("");
     setChatBusy(true);
 
+    // Add a placeholder assistant message that we'll stream into
+    const placeholderIndex = chatMessages.length + 1; // +1 for the user message we just added
+    setChatMessages((previous) => [...previous, { role: "assistant" as const, content: "" }]);
+
     try {
       const thread = chatThread ?? `chat-${Date.now()}`;
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await fetch(`${API_URL}/api/chat/stream`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: userMessage.content, thread_id: thread }),
       });
 
-      const payload = (await response.json()) as ChatResponse & { detail?: string };
       if (!response.ok) {
-        throw new Error(payload.detail || "Could not get response");
+        const errorBody = await response.text();
+        throw new Error(errorBody || "Could not get response");
       }
 
-      const normalizedMessages: ChatMessage[] = payload.messages
-        .map((message) => {
-          const role = (message.role === "user" ? "user" : message.role === "assistant" ? "assistant" : "ai") as ChatMessage["role"];
-          return {
-            role,
-            content: String(message.content || ""),
-          };
-        })
-        .filter((message) => message.content.trim().length > 0);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response stream available");
+      }
 
-      let assistantMessage: ChatMessage | null = null;
-      for (let index = normalizedMessages.length - 1; index >= 0; index -= 1) {
-        const candidate = normalizedMessages[index];
-        if (candidate.role !== "user") {
-          assistantMessage = candidate;
-          break;
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6);
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr) as { type: string; content: string };
+
+            if (event.type === "thread_id") {
+              setChatThread(event.content);
+            } else if (event.type === "token") {
+              accumulated += event.content;
+              const snapshot = accumulated;
+              setChatMessages((previous) => {
+                const updated = [...previous];
+                updated[placeholderIndex] = { role: "assistant", content: snapshot };
+                return updated;
+              });
+            }
+          } catch {
+            // skip malformed SSE lines
+          }
         }
       }
 
-      setChatThread(payload.thread_id);
-      if (assistantMessage && assistantMessage.content.trim().length > 0) {
-        setChatMessages((previous) => [...previous, assistantMessage]);
-      } else {
-        setChatMessages((previous) => [
-          ...previous,
-          {
-            role: "assistant",
-            content: payload.answer || "No response returned.",
-          },
-        ]);
+      // If nothing was streamed, show a fallback
+      if (!accumulated) {
+        setChatMessages((previous) => {
+          const updated = [...previous];
+          updated[placeholderIndex] = { role: "assistant", content: "No response returned." };
+          return updated;
+        });
       }
     } catch (error) {
-      setChatMessages((previous) => [
-        ...previous,
-        {
+      setChatMessages((previous) => {
+        const updated = [...previous];
+        updated[placeholderIndex] = {
           role: "assistant",
           content: (error as Error).message || "Something went wrong while chatting.",
-        },
-      ]);
+        };
+        return updated;
+      });
     } finally {
       setChatBusy(false);
     }

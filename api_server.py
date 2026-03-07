@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from reflect.service import (
@@ -12,6 +13,7 @@ from reflect.service import (
     get_dashboard_payload,
     run_chat,
     run_reflection_pipeline,
+    stream_chat,
 )
 
 
@@ -91,6 +93,15 @@ def ask_graph(payload: AskRequest) -> AskResponse:
         return AskResponse(thread_id=raw["thread_id"], answer=latest, messages=raw["messages"])
     except Exception as exc:  # pragma: no cover - surfaced through API transport
         raise HTTPException(status_code=500, detail=f"Failed to run assistant: {exc}") from exc
+
+
+@app.post("/api/chat/stream")
+async def ask_graph_stream(payload: AskRequest) -> StreamingResponse:
+    return StreamingResponse(
+        stream_chat(message=payload.message, thread_id=payload.thread_id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/dashboard")
