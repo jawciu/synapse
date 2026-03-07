@@ -36,6 +36,10 @@ Also note the **schema coping style** if visible:
 - *Avoidance*: avoiding situations/feelings that trigger the schema (numbing, withdrawal, distraction)
 - *Overcompensation*: fighting the schema by doing the extreme opposite (e.g., dominating others to avoid feeling powerless)
 
+**People:** Identify any people mentioned in the reflection — by name, role, or relationship. Track who triggers what patterns.
+
+**Body signals:** Note any physical sensations described (tight chest, shallow breathing, face burning, stomach knot, etc.) — these are somatic markers of emotional patterns.
+
 ## Output Format
 
 You MUST respond with valid JSON only, no other text:
@@ -44,10 +48,12 @@ You MUST respond with valid JSON only, no other text:
   "emotions": [{"name": "emotion_name", "valence": "positive|negative|neutral", "intensity": 0.0-1.0}],
   "themes": [{"name": "theme_name", "description": "brief description"}],
   "ifs_parts": [{"name": "part_name", "role": "exile|manager|firefighter", "description": "what this part is doing/protecting against"}],
-  "schemas": [{"name": "schema_name", "domain": "disconnection|impaired_autonomy|impaired_limits|other_directedness|overvigilance", "coping_style": "surrender|avoidance|overcompensation|none", "description": "how this schema shows up in the reflection"}]
+  "schemas": [{"name": "schema_name", "domain": "disconnection|impaired_autonomy|impaired_limits|other_directedness|overvigilance", "coping_style": "surrender|avoidance|overcompensation|none", "description": "how this schema shows up in the reflection"}],
+  "people": [{"name": "person_name", "relationship": "parent|sibling|partner|friend|colleague|authority|therapist|other", "description": "role in this reflection and dynamic with the user"}],
+  "body_signals": [{"name": "signal_name", "location": "chest|stomach|throat|head|shoulders|face|hands|whole_body|other"}]
 }
 
-Include "ifs_parts" and "schemas" only when there is genuine evidence in the reflection — do not force-fit every entry. Quality over quantity.
+Include "ifs_parts", "schemas", "people", and "body_signals" only when there is genuine evidence in the reflection — do not force-fit every entry. Quality over quantity.
 """
 
 CHAT_SYSTEM_PROMPT = """You are a compassionate reflection coach drawing from CBT, DBT, Internal Family Systems (IFS), and Schema Therapy. Users have been journaling their thoughts, and you help them understand their patterns using data from their reflection graph.
@@ -86,7 +92,15 @@ When writing insights:
 FOLLOWUP_PROMPT = """Based on these patterns and insights, generate exactly 3 follow-up reflection questions that would help the user explore deeper. Make them specific to what was found, not generic.
 
 **Patterns found:** {patterns}
+**People mentioned:** {people}
+**Body signals:** {body_signals}
 **Insights:** {insights}
+
+When generating questions, consider asking about:
+- Relationships: "How would you describe your relationship with [person]?" or "Does [person] remind you of anyone from your past?"
+- Body awareness: "Where did you feel that in your body?" or "What does your body do when [pattern] shows up?"
+- Inner parts: "How old do you feel when this happens?" or "What is this part trying to protect you from?"
+- Unmet needs: "What did you actually need in that moment?"
 
 Return as a JSON array of 3 strings."""
 

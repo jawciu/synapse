@@ -107,6 +107,21 @@ with tab1:
                     coping = f" | coping: {s['coping_style']}" if s.get("coping_style", "none") != "none" else ""
                     st.write(f"**{s['name']}** ({s['domain']}{coping}): {s['description']}")
 
+        # People & Body Signals
+        people = extracted.get("people", [])
+        body_signals = extracted.get("body_signals", [])
+        if people or body_signals:
+            st.divider()
+            col_people, col_body = st.columns(2)
+            with col_people:
+                st.subheader("People")
+                for p in people:
+                    st.write(f"**{p['name']}** ({p['relationship']}): {p.get('description', '')}")
+            with col_body:
+                st.subheader("Body Signals")
+                for b in body_signals:
+                    st.write(f"**{b['name']}** ({b.get('location', '')})")
+
         # Insights
         st.divider()
         st.subheader("Insights")
@@ -278,6 +293,61 @@ with tab2:
                                 f'<span style="color:#888;">{pct}%</span>',
                                 unsafe_allow_html=True,
                             )
+
+                st.divider()
+
+                # ── People & Body Signals ──
+                col_people, col_body = st.columns(2)
+
+                people_data = _conn.query("SELECT name, relationship, description, occurrences FROM person ORDER BY occurrences DESC")
+                body_data = _conn.query("SELECT name, location, occurrences FROM body_signal ORDER BY occurrences DESC")
+
+                with col_people:
+                    st.subheader("People in Your Reflections")
+                    if people_data and not isinstance(people_data, str):
+                        REL_COLORS = {
+                            "parent": "#FF6B6B", "sibling": "#FFD93D", "partner": "#DDA0DD",
+                            "friend": "#4ECDC4", "colleague": "#45B7D1", "authority": "#96CEB4",
+                            "therapist": "#A8D8EA", "other": "#ccc",
+                        }
+                        for p in people_data[:8]:
+                            rel = p.get("relationship", "other")
+                            color = REL_COLORS.get(rel, "#ccc")
+                            occ = p.get("occurrences", 1)
+                            bar_width = min(occ * 15, 100)
+                            st.markdown(
+                                f'<div style="margin-bottom:10px;">'
+                                f'<span style="color:{color};font-weight:bold;">{p["name"]}</span> '
+                                f'<span style="color:#888;font-size:0.85em;">({rel})</span><br/>'
+                                f'<div style="background:{color}33;border-radius:4px;height:8px;width:100%;margin-top:3px;">'
+                                f'<div style="background:{color};border-radius:4px;height:8px;width:{bar_width}%;"></div>'
+                                f'</div>'
+                                f'<span style="color:#aaa;font-size:0.8em;">{p.get("description", "")}</span>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+                    else:
+                        st.caption("No people detected yet.")
+
+                with col_body:
+                    st.subheader("Body Signals")
+                    if body_data and not isinstance(body_data, str):
+                        BODY_COLOR = "#E8A87C"
+                        for b in body_data[:8]:
+                            occ = b.get("occurrences", 1)
+                            bar_width = min(occ * 15, 100)
+                            st.markdown(
+                                f'<div style="margin-bottom:10px;">'
+                                f'<span style="color:{BODY_COLOR};font-weight:bold;">{b["name"]}</span> '
+                                f'<span style="color:#888;font-size:0.85em;">({b.get("location", "")})</span><br/>'
+                                f'<div style="background:{BODY_COLOR}33;border-radius:4px;height:8px;width:100%;margin-top:3px;">'
+                                f'<div style="background:{BODY_COLOR};border-radius:4px;height:8px;width:{bar_width}%;"></div>'
+                                f'</div>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+                    else:
+                        st.caption("No body signals detected yet.")
 
             else:
                 st.info("No patterns yet. Submit a reflection to get started!")

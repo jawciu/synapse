@@ -35,4 +35,4 @@ def extract_with_agent(text: str, extraction_tools: list) -> dict:
         return json.loads(json_str.strip())
     except (json.JSONDecodeError, IndexError):
         # Fallback: return empty extraction
-        return {"patterns": [], "emotions": [], "themes": [], "ifs_parts": [], "schemas": []}
+        return {"patterns": [], "emotions": [], "themes": [], "ifs_parts": [], "schemas": [], "people": [], "body_signals": []}
