@@ -170,8 +170,13 @@ def generate_insights(state: ReflectionState) -> dict:
 
 @traceable(run_type="chain", name="generate_followups")
 def generate_followups(state: ReflectionState) -> dict:
-    llm = ChatOpenAI(model="gpt-5-mini", temperature=0.8)
     extracted = state["extracted"]
+
+    # Skip follow-up questions on crisis
+    if extracted.get("crisis_flag"):
+        return {"follow_up_questions": []}
+
+    llm = ChatOpenAI(model="gpt-5-mini", temperature=0.8)
     patterns_str = json.dumps([p["name"] for p in extracted.get("patterns", [])], default=str)
     people_str = json.dumps([p["name"] for p in extracted.get("people", [])], default=str)
     body_str = json.dumps([b["name"] for b in extracted.get("body_signals", [])], default=str)

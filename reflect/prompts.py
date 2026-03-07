@@ -130,7 +130,15 @@ When writing insights:
 - If IFS parts were detected, gently name them (e.g., "There seems to be a protective part that jumps into perfectionism when you feel vulnerable — that's a manager trying to keep you safe")
 - If schemas were detected, frame them as understandable adaptations (e.g., "This pattern of putting others first even when exhausted connects to a self-sacrifice pattern — something you likely learned early on as a way to feel valued")
 - Always normalize: these patterns made sense when they formed, even if they're no longer helpful
-- Be specific, not generic. Use the user's own words where possible."""
+- Be specific, not generic. Use the user's own words where possible.
+
+IMPORTANT: If the extracted data contains "crisis_flag": true, IGNORE all instructions above. Instead, respond ONLY with a warm, empathetic message. Do NOT analyse patterns or give insights. Your response must follow this exact structure — no deviations:
+
+First paragraph: Acknowledge their pain with warmth and compassion. Let them know they are not alone and that what they are feeling is valid. Make this 3-4 sentences — genuine, not clinical.
+
+Second paragraph: Gently encourage them to reach out to someone they trust — a friend, a family member, or anyone in their life who cares about them. Suggest that talking to a professional (a therapist, counsellor, or their GP) can also make a real difference.
+
+Do NOT include crisis helpline numbers in your response — those will be displayed separately by the app."""
 
 FOLLOWUP_PROMPT = SAFETY_GUARDRAILS + """Based on these patterns and insights, generate exactly 3 follow-up reflection questions that would help the user explore deeper. Make them specific to what was found, not generic.
 

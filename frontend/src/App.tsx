@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type KeyboardEvent, type SVGProps } from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import AuthPage from "./pages/AuthPage";
 import {
   Bar,
@@ -113,6 +114,7 @@ type Extraction = {
   schemas: SchemaEntry[];
   people: PersonEntry[];
   body_signals: BodySignal[];
+  crisis_flag?: boolean;
 };
 
 type Summary = {
@@ -596,7 +598,7 @@ function App() {
   };
 
   const onReflectionComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !reflectionBusy && reflectionText.trim()) {
+    if (event.key === "Enter" && !event.shiftKey && !reflectionBusy && reflectionText.trim()) {
       event.preventDefault();
       void submitReflection();
     }
@@ -1753,119 +1755,129 @@ function App() {
                 {reflectionError ? <p className="error">{reflectionError}</p> : null}
 
                 {lastReflection ? (
-                  <>
-                    {hasEntityUpdates ? (
+                  extraction.crisis_flag ? (
+                    <section className="crisis-card">
+                      <p className="crisis-message">{insights}</p>
+                      <div className="crisis-helplines">
+                        <h3>Crisis helplines</h3>
+                        <p><strong>UK:</strong> Samaritans — call <a href="tel:116123">116 123</a> (free, 24/7) or text SHOUT to <strong>85258</strong></p>
+                        <p><strong>US:</strong> 988 Suicide &amp; Crisis Lifeline — call or text <a href="tel:988"><strong>988</strong></a></p>
+                        <p><strong>International:</strong> <a href="https://findahelpline.com" target="_blank" rel="noopener noreferrer">findahelpline.com</a></p>
+                      </div>
+                    </section>
+                  ) : (
+                    <>
+                      {hasEntityUpdates ? (
+                        <div className="result-grid">
+                          {extraction.patterns.length > 0 ? (
+                            <section className="panel">
+                              <h3>Patterns</h3>
+                              {extraction.patterns.map((pattern) => (
+                                <p key={pattern.name}>
+                                  <strong>{pattern.name}</strong> <span className="meta">({pattern.category})</span> -{' '}
+                                  {clampPercent(pattern.strength)}%
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+
+                          {extraction.emotions.length > 0 ? (
+                            <section className="panel">
+                              <h3>Emotions</h3>
+                              {extraction.emotions.map((emotion) => (
+                                <p key={emotion.name}>
+                                  <strong>{emotion.name}</strong> <span className="meta">({emotion.valence})</span> -{' '}
+                                  {clampPercent(emotion.intensity)}%
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+
+                          {extraction.themes.length > 0 ? (
+                            <section className="panel">
+                              <h3>Themes</h3>
+                              {extraction.themes.map((theme) => (
+                                <p key={theme.name}>
+                                  <strong>{theme.name}</strong>
+                                  <span className="muted"> - {theme.description}</span>
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+
+                          {extraction.ifs_parts.length > 0 ? (
+                            <section className="panel">
+                              <h3>IFS Parts</h3>
+                              {extraction.ifs_parts.map((part) => (
+                                <p key={part.name}>
+                                  <strong>{part.name}</strong> <span className="meta">({roleName(part.role)})</span>
+                                  <span className="muted"> - {part.description}</span>
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+
+                          {extraction.schemas.length > 0 ? (
+                            <section className="panel">
+                              <h3>Schemas</h3>
+                              {extraction.schemas.map((schema) => (
+                                <p key={schema.name}>
+                                  <strong>{schema.name}</strong>
+                                  <span className="meta">
+                                    ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
+                                  </span>
+                                  <span className="muted"> - {schema.description}</span>
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+
+                          {extraction.people.length > 0 ? (
+                            <section className="panel">
+                              <h3>People</h3>
+                              {extraction.people.map((person) => (
+                                <p key={person.name}>
+                                  <strong>{person.name}</strong>
+                                  <span className="meta"> ({person.relationship})</span>
+                                  {person.description ? <span className="muted"> - {person.description}</span> : null}
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+
+                          {extraction.body_signals.length > 0 ? (
+                            <section className="panel">
+                              <h3>Body Signals</h3>
+                              {extraction.body_signals.map((signal) => (
+                                <p key={signal.name}>
+                                  <strong>{signal.name}</strong>
+                                  <span className="meta"> ({signal.location})</span>
+                                </p>
+                              ))}
+                            </section>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                       <div className="result-grid">
-                        {extraction.patterns.length > 0 ? (
-                          <section className="panel">
-                            <h3>Patterns</h3>
-                            {extraction.patterns.map((pattern) => (
-                              <p key={pattern.name}>
-                                <strong>{pattern.name}</strong> <span className="meta">({pattern.category})</span> -{' '}
-                                {clampPercent(pattern.strength)}%
-                              </p>
-                            ))}
-                          </section>
-                        ) : null}
+                        <section className="panel wide-panel">
+                          <h3>Insights</h3>
+                          <p>{insights || "--"}</p>
+                        </section>
 
-                        {extraction.emotions.length > 0 ? (
-                          <section className="panel">
-                            <h3>Emotions</h3>
-                            {extraction.emotions.map((emotion) => (
-                              <p key={emotion.name}>
-                                <strong>{emotion.name}</strong> <span className="meta">({emotion.valence})</span> -{' '}
-                                {clampPercent(emotion.intensity)}%
-                              </p>
-                            ))}
-                          </section>
-                        ) : null}
-
-                        {extraction.themes.length > 0 ? (
-                          <section className="panel">
-                            <h3>Themes</h3>
-                            {extraction.themes.map((theme) => (
-                              <p key={theme.name}>
-                                <strong>{theme.name}</strong>
-                                <span className="muted"> - {theme.description}</span>
-                              </p>
-                            ))}
-                          </section>
-                        ) : null}
-
-                        {extraction.ifs_parts.length > 0 ? (
-                          <section className="panel">
-                            <h3>IFS Parts</h3>
-                            {extraction.ifs_parts.map((part) => (
-                              <p key={part.name}>
-                                <strong>{part.name}</strong> <span className="meta">({roleName(part.role)})</span>
-                                <span className="muted"> - {part.description}</span>
-                              </p>
-                            ))}
-                          </section>
-                        ) : null}
-
-                        {extraction.schemas.length > 0 ? (
-                          <section className="panel">
-                            <h3>Schemas</h3>
-                            {extraction.schemas.map((schema) => (
-                              <p key={schema.name}>
-                                <strong>{schema.name}</strong>
-                                <span className="meta">
-                                  ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
-                                </span>
-                                <span className="muted"> - {schema.description}</span>
-                              </p>
-                            ))}
-                          </section>
-                        ) : null}
-
-                        {extraction.people.length > 0 ? (
-                          <section className="panel">
-                            <h3>People</h3>
-                            {extraction.people.map((person) => (
-                              <p key={person.name}>
-                                <strong>{person.name}</strong>
-                                <span className="meta"> ({person.relationship})</span>
-                                {person.description ? <span className="muted"> - {person.description}</span> : null}
-                              </p>
-                            ))}
-                          </section>
-                        ) : null}
-
-                        {extraction.body_signals.length > 0 ? (
-                          <section className="panel">
-                            <h3>Body Signals</h3>
-                            {extraction.body_signals.map((signal) => (
-                              <p key={signal.name}>
-                                <strong>{signal.name}</strong>
-                                <span className="meta"> ({signal.location})</span>
-                              </p>
-                            ))}
+                        {followUps.length > 0 ? (
+                          <section className="panel wide-panel">
+                            <h3>Follow-up Questions</h3>
+                            <ul>
+                              {followUps.map((followUp) => (
+                                <li key={followUp}>{followUp}</li>
+                              ))}
+                            </ul>
                           </section>
                         ) : null}
                       </div>
-                    ) : null}
-
-                    <div className="result-grid">
-                      <section className="panel wide-panel">
-                        <h3>Insights</h3>
-                        <p>{insights || "--"}</p>
-                      </section>
-
-                      <section className="panel wide-panel">
-                        <h3>Follow-up Questions</h3>
-                        {followUps.length > 0 ? (
-                          <ul>
-                            {followUps.map((followUp) => (
-                              <li key={followUp}>{followUp}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="muted">No follow-ups yet.</p>
-                        )}
-                      </section>
-                    </div>
-                  </>
+                    </>
+                  )
                 ) : null}
               </>
             ) : (
@@ -1878,7 +1890,7 @@ function App() {
                         {message.role === "user" ? (
                           <span> {message.content}</span>
                         ) : (
-                          <Markdown>{message.content}</Markdown>
+                          <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                         )}
                       </div>
                     ))}
@@ -1892,7 +1904,7 @@ function App() {
                   placeholder="Ask anything about your patterns, emotions, or reflections..."
                   onChange={(event) => setChatInput(event.target.value)}
                   onKeyDown={(event) => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !chatBusy && chatInput.trim()) {
+                    if (event.key === "Enter" && !event.shiftKey && !chatBusy && chatInput.trim()) {
                       event.preventDefault();
                       void sendChat();
                     }
