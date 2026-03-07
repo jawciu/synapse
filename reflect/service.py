@@ -140,7 +140,12 @@ async def stream_chat(message: str, thread_id: str | None) -> AsyncGenerator[str
         if kind == "on_chat_model_stream":
             # Only stream tokens from the final answer, not from tool-calling steps
             chunk = event["data"]["chunk"]
-            token = chunk.content
+            content = chunk.content
+            # Anthropic returns a list of content blocks, OpenAI returns a string
+            if isinstance(content, list):
+                token = "".join(block.get("text", "") for block in content if isinstance(block, dict))
+            else:
+                token = content
             if token and isinstance(token, str):
                 yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
