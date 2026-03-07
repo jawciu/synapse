@@ -41,6 +41,8 @@ def store_reflection_record(conn: Surreal, text: str, daily_prompt: str | None =
 
 @traceable(run_type="tool", name="upsert_pattern")
 def upsert_pattern(conn: Surreal, name: str, category: str, description: str) -> str:
+    name = name.strip().lower()
+    category = category.strip().lower()
     embedding = _embed(f"{name}: {description}")
     result = conn.query(
         """UPDATE pattern SET
@@ -78,6 +80,8 @@ def upsert_theme(conn: Surreal, name: str, description: str) -> str:
 
 @traceable(run_type="tool", name="upsert_ifs_part")
 def upsert_ifs_part(conn: Surreal, name: str, role: str, description: str) -> str:
+    name = name.strip().lower()
+    role = role.strip().lower()
     embedding = _embed(f"IFS {role}: {name} — {description}")
     result = conn.query(
         """UPDATE ifs_part SET
@@ -100,6 +104,9 @@ def upsert_ifs_part(conn: Surreal, name: str, role: str, description: str) -> st
 
 @traceable(run_type="tool", name="upsert_schema")
 def upsert_schema(conn: Surreal, name: str, domain: str, coping_style: str, description: str) -> str:
+    name = name.strip().lower()
+    domain = domain.strip().lower()
+    coping_style = coping_style.strip().lower()
     embedding = _embed(f"Schema {name} ({domain}): {description}")
     result = conn.query(
         """UPDATE schema_pattern SET
@@ -137,6 +144,7 @@ def upsert_emotion(conn: Surreal, name: str, valence: str, intensity: float) -> 
 
 @traceable(run_type="tool", name="upsert_person")
 def upsert_person(conn: Surreal, name: str, relationship: str, description: str) -> str:
+    name = name.strip().title()  # "mum" and "Mum" -> "Mum"
     embedding = _embed(f"{name} ({relationship}): {description}")
     result = conn.query(
         """UPDATE person SET
