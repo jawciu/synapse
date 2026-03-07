@@ -36,6 +36,7 @@ The repo is small but mostly complete as a demo:
 - SurrealDB startup now validates required env vars with clear `RuntimeError` messages; namespace/database default to `main` when unset and also accept `SURREAL_NAMESPACE` / `SURREAL_DATABASE` aliases.
 - Render Blueprint config exists in `render.yaml` for backend (`synapse-backend`), Telegram worker (`synapse-telegram`), and static frontend (`synapse-frontend`) with `autoDeploy: true` on `main`.
 - Public frontend demo is currently available at `https://synapse-frontend-vdmo.onrender.com/`.
+- Public Telegram bot handle is `@synapse_helper_bot` (`https://t.me/synapse_helper_bot`).
 - Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.

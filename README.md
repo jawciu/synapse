@@ -21,7 +21,9 @@ Public demo: [synapse-frontend-vdmo.onrender.com](https://synapse-frontend-vdmo.
 
 ### Telegram (text + voice notes)
 
-1. Message the Synapse Telegram bot (for deployments where the bot is enabled).
+Start chat: [@synapse_helper_bot](https://t.me/synapse_helper_bot)
+
+1. Message the Synapse Telegram bot: [@synapse_helper_bot](https://t.me/synapse_helper_bot) (for deployments where the bot is enabled).
 2. First-time setup is inline: share email + password when prompted.
 3. Send a text reflection and get analysis back in chat.
 4. Or send a voice note; Synapse transcribes it and runs the same reflection pipeline.
@@ -58,6 +60,8 @@ Synapse is built to solve that:
 ## Telegram integration (write or speak your reflections)
 
 Synapse is intentionally multichannel. Reflection capture is not limited to the web UI.
+
+Bot link: [@synapse_helper_bot](https://t.me/synapse_helper_bot)
 
 - **Text reflections in Telegram:** send your reflection as a message and Synapse returns extracted patterns, emotions, insights, and follow-up prompts.
 - **Voice-note reflections in Telegram:** send a voice note, Synapse transcribes it with `whisper-1`, then runs the same LangGraph reflection pipeline.
