@@ -1894,7 +1894,12 @@ function App() {
                         )}
                       </div>
                     ))}
-                    {chatBusy ? <p className="muted">Assistant is thinking...</p> : null}
+                    {chatBusy && chatMessages.length > 0 && !chatMessages[chatMessages.length - 1].content ? (
+                      <div className="chat-thinking">
+                        <span className="chat-thinking-text">Assistant is thinking...</span>
+                        <div className="chat-thinking-shimmer" />
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 <textarea
