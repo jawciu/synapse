@@ -1,36 +1,76 @@
 # synapse
 
-**A stateful reflection agent powered by LangGraph + SurrealDB.**
+**Journaling that remembers.**
 
-Synapse turns journaling into a persistent knowledge graph, then lets users query that graph conversationally to surface patterns, triggers, and relationships over time.
-
-Built for the **London LangChain x SurrealDB Hackathon**.
-
----
-
-## The one-line pitch
-
-Most AI journaling demos forget everything after each response. Synapse keeps durable, structured memory so the agent can reason across time instead of only reacting to the last message.
+Synapse is a memory-first reflection agent built for the London LangChain x SurrealDB Hackathon.
+It turns unstructured reflections into a persistent knowledge graph, then answers questions from that evolving graph context.
 
 ---
 
-## Why this matters
+## Why this project exists
 
-Personal reflection is not a single-turn problem. Real insight comes from repeated patterns:
+Most AI journaling tools are stateless or shallowly stateful. They can sound empathetic, but they forget pattern history and repeat generic advice.
 
-- the same trigger showing up across weeks
-- the same person activating the same emotional loop
-- the same body signal appearing before shutdown or anxiety
+Synapse is built to solve that:
 
-Synapse is designed to make that history queryable and useful.
+- persistent, structured memory in SurrealDB
+- agent orchestration with LangGraph + LangChain tools
+- grounded responses based on stored user context, not only the latest prompt
 
 ---
 
-## What we built
+## What Synapse does today
 
-### 1) Reflection Ingestion Agent (LangGraph)
+- Ingests reflections through a 6-node LangGraph pipeline
+- Extracts patterns/emotions/themes/IFS parts/schemas/people/body signals
+- Persists graph entities + typed relations + vector embeddings in SurrealDB
+- Generates personalized insights and follow-up questions
+- Supports conversational "ask your graph" analysis with a ReAct tool-calling agent
+- Ships as a full app surface:
+  - React web app (`reflect` + `talk`)
+  - FastAPI backend
+  - Telegram bot (text + voice note ingestion)
 
-A 6-node pipeline processes each reflection:
+---
+
+## Architecture (Mermaid)
+
+```mermaid
+flowchart LR
+    U["User writes reflection"] --> API1["POST /api/reflection"]
+    API1 --> LG["LangGraph reflection pipeline"]
+
+    LG --> N1["store_reflection"]
+    LG --> N2["extract_patterns (ReAct)"]
+    N2 --> T1["Tool: get_existing_patterns"]
+    N2 --> T2["Tool: retrieve_similar_reflections"]
+    N1 --> N3["update_graph"]
+    N2 --> N3
+    N3 --> N4["query_graph"]
+    N4 --> N5["generate_insights"]
+    N5 --> N6["generate_followups"]
+
+    N3 --> SDB[("SurrealDB knowledge graph")]
+    N1 --> VDB[("SurrealDB vector store")]
+
+    Q["User asks a question"] --> API2["POST /api/chat or /api/chat/stream"]
+    API2 --> CHAT["ReAct chat agent"]
+    CHAT --> GT["14 graph/search tools"]
+    GT --> SDB
+    GT --> VDB
+    CHAT --> A["Grounded answer"]
+
+    LSM["LangSmith tracing"] -.-> LG
+    LSM -.-> CHAT
+```
+
+---
+
+## LangChain and LangSmith usage (detailed)
+
+### LangGraph orchestration
+
+The reflection workflow in `reflect/agent.py` is a typed `StateGraph` with explicit node boundaries:
 
 1. `store_reflection`
 2. `extract_patterns`
@@ -39,96 +79,102 @@ A 6-node pipeline processes each reflection:
 5. `generate_insights`
 6. `generate_followups`
 
-The graph starts with two parallel entry points (`store_reflection` and `extract_patterns`) and joins for graph updates.
+`START` fans out to both `store_reflection` and `extract_patterns`, then joins before graph updates. This enforces deterministic multi-step behavior while still allowing parallel start stages.
 
-### 2) Agentic extraction with retrieval grounding
+### ReAct agents + tools
 
-Before extraction, the agent explicitly calls tools to:
+- Extraction agent (`reflect/extraction.py`) uses `create_react_agent` and must call retrieval tools before extraction.
+- Chat agent (`reflect/chat_agent.py`) uses `create_react_agent` with 14 tools from `reflect/graph_store.py` (overview, deep-dive, trigger, temporal, and hybrid search tools).
+- Chat streaming (`/api/chat/stream`) emits SSE tokens from `astream_events` in `reflect/service.py`.
 
-- fetch existing patterns from the graph
-- retrieve semantically similar reflections
+### Memory and state
 
-That reduces duplicate labels and improves consistency over time.
+- Reflection and chat graphs are compiled with `MemorySaver` for thread continuity.
+- Thread IDs are normalized (`reflection-session-*`, `chat-session-*`) and passed through the API.
 
-### 3) Persistent memory in SurrealDB
+### LangSmith observability
 
-Synapse stores both:
+`@traceable` instrumentation is applied on key chain functions and graph operations, so traces capture:
 
-- **graph memory** (patterns, emotions, themes, IFS parts, schemas, people, body signals + typed edges)
-- **vector memory** (semantic retrieval over reflections and embedded graph nodes)
+- node-level latency and outputs
+- tool call sequencing
+- end-to-end pipeline behavior per reflection/chat run
 
-### 4) Conversational "ask your graph" agent
-
-A ReAct chat agent answers questions using 14 graph/search tools (including hybrid semantic graph search and person deep-dives), grounded in stored user data.
-
-### 5) Product surfaces shipped
-
-- Web app (React + TypeScript):
-  - auth (register/login)
-  - `reflect` tab for ingestion
-  - `talk` tab for conversational analysis
-  - interactive drill-downs for reflections, patterns, emotions, themes, people, and body signals
-- API (FastAPI): reflection, chat (standard + streaming SSE), dashboard, people analytics
-- Telegram bot: text and voice-note reflection ingestion (voice transcription via `whisper-1`)
+This gives judges and builders visibility into agent reliability, not just final output text.
 
 ---
 
-## Why this is a strong LangChain x SurrealDB project
+## SurrealDB knowledge graph usage (detailed)
 
-### Structured memory / knowledge usage (SurrealDB)
+Synapse uses SurrealDB as both:
 
-- Persistent graph entities and relations, not flat logs
-- User-scoped storage with evolving node occurrence counts
-- Graph + vector hybrid retrieval over the same knowledge surface
+- **graph database** for typed entities and relationships
+- **vector backend** for semantic retrieval
 
-### Agent workflow quality (LangChain / LangGraph)
+### Stored node types
 
-- Explicit multi-step pipeline with state handoff
-- Tool-using extraction and tool-using chat agents
-- Grounded answers based on graph lookups, not generic prompting
+- `reflection`
+- `pattern`
+- `theme`
+- `emotion`
+- `ifs_part`
+- `schema_pattern`
+- `person`
+- `body_signal`
 
-### Persistent agent state
+### Key relations
 
-- LangGraph `MemorySaver` thread continuity
-- Durable storage in SurrealDB across sessions and channels (web + Telegram)
+- `reveals` (`reflection -> pattern`)
+- `expresses` (`reflection -> emotion`)
+- `about` (`reflection -> theme`)
+- `mentions` (`reflection -> person`)
+- `triggers_pattern` (`person -> pattern`)
+- `activates` (`reflection -> ifs_part`)
+- `triggers_schema` (`reflection -> schema_pattern`)
+- `feels_in_body` (`reflection -> body_signal`)
+- plus co-occurrence and trigger edges
 
-### Practical use case
+### Why this improves agent quality
 
-- Real reflection workflow where longitudinal context is essential
-- Actionable outputs: insights, follow-up questions, and relationship-focused key actions
+- The extractor can reuse existing labels instead of creating duplicates.
+- The chat agent can traverse explicit relationships for grounded answers.
+- Hybrid graph/vector search catches fuzzy language while preserving structure.
+- User-scoped records (`user_id`) keep each user graph isolated.
 
-### Observability
+### Vector layer details
 
-- LangSmith `@traceable` decorators across pipeline and graph operations
+- Reflection documents are embedded for semantic recall.
+- Core graph node tables are embedded for semantic graph lookup.
+- SurrealDB v3 vector behavior is patched in `reflect/db.py` for HNSW + cosine KNN compatibility with `langchain-surrealdb`.
 
 ---
 
-## Demo and judging materials
+## Hackathon materials
 
-- Hackathon brief: [`london-hackathon-full-details.md`](/Users/ian/dev/synapse/london-hackathon-full-details.md)
-- Full live-demo + video pitch playbook: [`pitch/PITCH_PLAYBOOK.md`](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md)
-- System architecture deep dive: [`ARCHITECTURE.md`](/Users/ian/dev/synapse/ARCHITECTURE.md)
+- Event brief: [`london-hackathon-full-details.md`](london-hackathon-full-details.md)
+- Pitch + demo playbook: [`pitch/PITCH_PLAYBOOK.md`](pitch/PITCH_PLAYBOOK.md)
+- Architecture deep dive: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
 ## Tech stack
 
-- **Orchestration:** LangGraph + LangChain
-- **Backend:** FastAPI (Python 3.12+)
-- **Frontend:** React + TypeScript (Vite)
-- **Database:** SurrealDB (graph + vector)
-- **Embeddings:** OpenAI `text-embedding-3-small`
-- **Extraction + chat agents:** Anthropic `claude-sonnet-4-6`
-- **Insight/follow-up generation:** OpenAI `gpt-5-mini`
-- **Voice transcription (Telegram):** OpenAI `whisper-1`
-- **Charts/UI analytics:** Recharts
-- **Tracing:** LangSmith
+- Orchestration: LangGraph + LangChain
+- Backend: FastAPI (Python 3.12+)
+- Frontend: React + TypeScript (Vite)
+- Database: SurrealDB (graph + vector)
+- Embeddings: OpenAI `text-embedding-3-small`
+- Extraction/chat model: Anthropic `claude-sonnet-4-6`
+- Insight/follow-up generation: OpenAI `gpt-5-mini`
+- Telegram voice transcription: OpenAI `whisper-1`
+- Charts: Recharts
+- Tracing: LangSmith
 
 ---
 
 ## API surface
 
-### Public health
+### Public
 
 - `GET /health`
 
@@ -139,7 +185,7 @@ A ReAct chat agent answers questions using 14 graph/search tools (including hybr
 - `POST /api/auth/reset-request`
 - `POST /api/auth/reset-confirm`
 
-### Protected app routes (Bearer token required)
+### Protected
 
 - `GET /api/daily-prompt`
 - `POST /api/reflection`
@@ -153,9 +199,9 @@ A ReAct chat agent answers questions using 14 graph/search tools (including hybr
 
 ## Deployment
 
-Render Blueprint file: [`render.yaml`](/Users/ian/dev/synapse/render.yaml)
+Render Blueprint: [`render.yaml`](render.yaml)
 
-Includes:
+Services:
 
 - `synapse-backend` (web)
 - `synapse-telegram` (worker)

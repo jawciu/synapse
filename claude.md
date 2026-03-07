@@ -28,7 +28,7 @@ The repo is small but mostly complete as a demo:
 - LangGraph pipeline for ingestion and analysis.
 - LangGraph ReAct chat agent for querying stored graph data.
 - SurrealDB used both as graph store and vector store backend.
-- OpenAI used for embeddings, chat, and synthesis LLM steps; Anthropic is used for extraction.
+- OpenAI is used for embeddings, insight/follow-up synthesis, and Telegram voice transcription; Anthropic is used for extraction and chat agents.
 - LangSmith decorators are present on the main pipeline and graph functions.
 - Seed data exists and is intentionally written to create cross-entry childhood and relationship patterns.
 - Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; `Start fresh` opens a compact ask-style input; `Cmd+Enter`/`Ctrl+Enter` submits the reflection composer; extracted entity sections (patterns, emotions, themes, IFS parts, schemas, people, body signals) render only when that reflection includes updates; the primary submit action is a centered `reflect` button.
@@ -44,7 +44,7 @@ The repo is small but mostly complete as a demo:
 What is not present:
 
 - No real test suite.
-- No auth, accounts, or multi-user isolation.
+- No advanced auth features (for example roles/permissions, admin controls, or external identity providers).
 - No production hardening around failures, retries, schema migrations, or privacy.
 
 ## Tech stack
@@ -55,11 +55,11 @@ What is not present:
 - LangGraph / LangChain for orchestration and agents
 - OpenAI:
   - `gpt-5-mini` for insights and follow-up generation
-  - `gpt-4o` for chat
-  - `gpt-4o-mini` only in [main.py](/Users/ian/dev/synapse/main.py), which is just a scratch smoke test
+  - `gpt-4o-mini` in [main.py](/Users/ian/dev/synapse/main.py) (scratch smoke test) and Telegram nudge generation
+  - `whisper-1` for Telegram voice-note transcription
   - `text-embedding-3-small` for embeddings
 - Anthropic:
-  - `claude-sonnet-4-6` for extraction (`ANTHROPIC_API_KEY` required)
+  - `claude-sonnet-4-6` for extraction and chat (`ANTHROPIC_API_KEY` required)
 - SurrealDB for:
   - structured graph tables and relations
   - vector search over reflection documents
@@ -70,7 +70,9 @@ What is not present:
 ## Repo map
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
+- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with architecture narrative and local runbook
 - [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
+- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): live demo script, 2-minute video plan, and pitch execution checklist
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml): dependencies and Python version
 - [render.yaml](/Users/ian/dev/synapse/render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`
 - [main.py](/Users/ian/dev/synapse/main.py): simple OpenAI smoke test, not the product entrypoint
@@ -112,7 +114,7 @@ Important details:
 
 - Shared resources are lazily initialized in `_init()`.
 - `_init()` connects to SurrealDB, runs schema initialization every process start, creates embeddings, patches the vector store, and builds tool sets.
-- Each submitted reflection uses a thread id like `session-1`, `session-2`, etc.
+- Each submitted reflection uses an auto-generated thread id like `reflection-session-<uuid>` when one is not provided.
 - Reflection text is stored twice:
   - as a `reflection` record in the graph
   - as a vector-store document for semantic retrieval
@@ -124,7 +126,7 @@ Implemented in [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent
 Important details:
 
 - Uses `create_react_agent`.
-- Uses `gpt-4o`.
+- Uses `claude-sonnet-4-6`.
 - Uses `MemorySaver`.
 - Chat messages use `thread_id` values managed by the frontend (`chat-session*` when omitted) so context can continue across turns.
 
@@ -645,7 +647,7 @@ If the task touches data modeling or search:
 If the task touches the UI:
 
 - inspect [frontend/src/App.tsx](/Users/ian/dev/synapse/frontend/src/App.tsx)
-- preserve the three-tab mental model unless intentionally redesigning the product
+- preserve the two-tab mental model (`reflect` and `talk`) unless intentionally redesigning the product
 
 If the task touches prompts or therapeutic framing:
 
@@ -672,13 +674,20 @@ These are not yet implemented, but they would reduce future confusion:
 This file was written after reading:
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md)
+- [README.md](/Users/ian/dev/synapse/README.md)
+- [ARCHITECTURE.md](/Users/ian/dev/synapse/ARCHITECTURE.md)
+- [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md)
+- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md)
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml)
 - [render.yaml](/Users/ian/dev/synapse/render.yaml)
+- [api_server.py](/Users/ian/dev/synapse/api_server.py)
 - [main.py](/Users/ian/dev/synapse/main.py)
 - [seed_data.py](/Users/ian/dev/synapse/seed_data.py)
 - [langchain_surreal.py](/Users/ian/dev/synapse/langchain_surreal.py)
 - [surreal_test.py](/Users/ian/dev/synapse/surreal_test.py)
 - [test.py](/Users/ian/dev/synapse/test.py)
+- [reflect/service.py](/Users/ian/dev/synapse/reflect/service.py)
+- [reflect/auth.py](/Users/ian/dev/synapse/reflect/auth.py)
 - [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py)
 - [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py)
 - [reflect/extraction.py](/Users/ian/dev/synapse/reflect/extraction.py)
