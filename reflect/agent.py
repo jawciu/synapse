@@ -32,6 +32,7 @@ from .prompts import INSIGHT_PROMPT, FOLLOWUP_PROMPT
 class ReflectionState(TypedDict):
     reflection_text: str
     daily_prompt: str | None
+    source: str | None
     reflection_id: str
     extracted: dict
     graph_connections: list
@@ -70,12 +71,13 @@ def store_reflection(state: ReflectionState) -> dict:
     _init()
     text = state["reflection_text"]
     prompt = state.get("daily_prompt")
+    source = state.get("source") or "app"
 
     # Store as graph record
-    rid = store_reflection_record(_conn, text, prompt)
+    rid = store_reflection_record(_conn, text, prompt, source)
 
     # Also add to vector store for semantic search
-    doc = Document(page_content=text, metadata={"id": rid, "daily_prompt": prompt or ""})
+    doc = Document(page_content=text, metadata={"id": rid, "daily_prompt": prompt or "", "source": source})
     _vector_store.add_documents(documents=[doc], ids=[rid.replace(":", "_")])
 
     return {"reflection_id": rid}

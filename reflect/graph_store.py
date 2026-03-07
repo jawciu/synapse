@@ -29,11 +29,11 @@ def _slug(name: str) -> str:
 # ──────────────────────────────────────────────
 
 @traceable(run_type="tool", name="store_reflection_record")
-def store_reflection_record(conn: Surreal, text: str, daily_prompt: str | None = None) -> str:
+def store_reflection_record(conn: Surreal, text: str, daily_prompt: str | None = None, source: str | None = None) -> str:
     """Store a reflection as a record and return its ID."""
     result = conn.query(
-        "CREATE reflection SET text = $text, daily_prompt = $prompt",
-        {"text": text, "prompt": daily_prompt},
+        "CREATE reflection SET text = $text, daily_prompt = $prompt, source = $source",
+        {"text": text, "prompt": daily_prompt, "source": source},
     )
     record_id = result[0]["id"]
     return str(record_id)

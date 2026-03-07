@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type SVGProps } from "react";
 import {
   Bar,
   BarChart,
@@ -13,6 +13,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  BodySignalIcon,
+  EmotionIcon,
+  FlowerIcon,
+  JournalIcon,
+  PatternIcon,
+  PeopleIcon,
+  RefreshIcon,
+  ThemeIcon,
+} from "./icons";
 
 type PatternEntry = {
   name: string;
@@ -104,6 +114,7 @@ type ReflectionSource = {
   id: string;
   text: string;
   daily_prompt?: string | null;
+  source?: string | null;
   created_at?: string | null;
 };
 
@@ -119,6 +130,7 @@ type ChatResponse = {
 };
 
 type TotalSelection = "reflections" | "patterns" | "emotions" | "themes" | "people" | "bodySignals";
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 type View = "reflect" | "patterns" | "ask";
 
@@ -249,6 +261,28 @@ function formatSourceDate(value: string | null | undefined): string {
   });
 }
 
+function formatReflectionSource(value: string | null | undefined): string {
+  const source = (value || "").trim().toLowerCase();
+  if (source === "telegram_text" || source === "telegram text" || source === "telegram") {
+    return "telegram text";
+  }
+  if (source === "voice" || source === "telegram_voice" || source === "telegram voice" || source === "voice_note") {
+    return "voice";
+  }
+  return "app";
+}
+
+function reflectionSourceKey(value: string | null | undefined): "app" | "telegram_text" | "voice" {
+  const source = (value || "").trim().toLowerCase();
+  if (source === "telegram_text" || source === "telegram text" || source === "telegram") {
+    return "telegram_text";
+  }
+  if (source === "voice" || source === "telegram_voice" || source === "telegram voice" || source === "voice_note") {
+    return "voice";
+  }
+  return "app";
+}
+
 function buildPromptDraft(prompt: string): string {
   const resolvedPrompt = prompt.trim() || "What felt most alive in your body today?";
   return [
@@ -295,6 +329,9 @@ function App() {
   const [reflectionSources, setReflectionSources] = useState<ReflectionSource[]>([]);
   const [sourcesBusy, setSourcesBusy] = useState(false);
   const [sourcesError, setSourcesError] = useState("");
+  const [reflectionsFilter, setReflectionsFilter] = useState<"all" | "app" | "telegram_text" | "voice">("all");
+  const [reflectionsSort, setReflectionsSort] = useState<"newest" | "oldest">("newest");
+  const [reflectionsQuery, setReflectionsQuery] = useState("");
 
   useEffect(() => {
     const initialize = async () => {
@@ -370,6 +407,7 @@ function App() {
               id: String(item.id),
               text: item.text || "",
               daily_prompt: item.daily_prompt || null,
+              source: item.source || null,
               created_at: item.created_at || null,
             }))
           : [],
@@ -409,6 +447,7 @@ function App() {
           reflection_text: reflectionText,
           daily_prompt: dailyPrompt || null,
           thread_id: null,
+          source: "app",
         }),
       });
 
@@ -598,40 +637,68 @@ function App() {
 
   const totalCards = useMemo(
     () => [
-      { key: "reflections" as const, label: "reflections", value: totals.reflections, emoji: "📓", color: "#ff7ea8" },
-      { key: "patterns" as const, label: "patterns", value: totals.patterns, emoji: "🧠", color: "#78a8ff" },
-      { key: "emotions" as const, label: "emotions", value: totals.emotions, emoji: "💗", color: "#ff6f7d" },
-      { key: "themes" as const, label: "themes", value: totals.themes, emoji: "🌙", color: "#9f8bff" },
-      { key: "people" as const, label: "people", value: totals.people, emoji: "🫂", color: "#ff9f58" },
-      { key: "bodySignals" as const, label: "body signals", value: totals.bodySignals, emoji: "⚡", color: "#35bda7" },
+      { key: "reflections" as const, label: "reflections", value: totals.reflections, icon: JournalIcon, color: "#ff7ea8" },
+      { key: "patterns" as const, label: "patterns", value: totals.patterns, icon: PatternIcon, color: "#78a8ff" },
+      { key: "emotions" as const, label: "emotions", value: totals.emotions, icon: EmotionIcon, color: "#ff6f7d" },
+      { key: "themes" as const, label: "themes", value: totals.themes, icon: ThemeIcon, color: "#9f8bff" },
+      { key: "people" as const, label: "people", value: totals.people, icon: PeopleIcon, color: "#ff9f58" },
+      { key: "bodySignals" as const, label: "body signals", value: totals.bodySignals, icon: BodySignalIcon, color: "#35bda7" },
     ],
     [totals],
   );
+
+  const visibleReflectionSources = useMemo(() => {
+    const query = reflectionsQuery.trim().toLowerCase();
+    const filtered = reflectionSources.filter((entry) => {
+      const sourceMatch = reflectionsFilter === "all" || reflectionSourceKey(entry.source) === reflectionsFilter;
+      if (!sourceMatch) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const body = `${entry.text || ""}\n${entry.daily_prompt || ""}`.toLowerCase();
+      return body.includes(query);
+    });
+
+    const byDate = [...filtered].sort((a, b) => {
+      const aTs = a.created_at ? Date.parse(a.created_at) : 0;
+      const bTs = b.created_at ? Date.parse(b.created_at) : 0;
+      return reflectionsSort === "newest" ? bTs - aTs : aTs - bTs;
+    });
+
+    return byDate;
+  }, [reflectionSources, reflectionsFilter, reflectionsSort, reflectionsQuery]);
 
   return (
     <div className="app-shell">
       <main className="content">
         <header className="menubar">
           <span className="menubar-lotus" aria-label="Synapse home">
-            🪷
+            <FlowerIcon className="menubar-lotus-icon" />
           </span>
           <nav className="menubar-stats" aria-label="Totals">
-            {totalCards.map((item) => (
-              <button
-                type="button"
-                key={item.key}
-                className={`menubar-stat ${selectedTotal === item.key ? "active" : ""}`}
-                aria-pressed={selectedTotal === item.key}
-                style={{ "--stat-color": item.color } as React.CSSProperties}
-                onClick={() => {
-                  void onSelectTotal(item.key);
-                }}
-              >
-                <span className="menubar-stat-emoji">{item.emoji}</span>
-                <span className="menubar-stat-number">{item.value}</span>
-                <span className="menubar-stat-label">{item.label}</span>
-              </button>
-            ))}
+            {totalCards.map((item) => {
+              const NavIcon: IconComponent = item.icon;
+              return (
+                <button
+                  type="button"
+                  key={item.key}
+                  className={`menubar-stat ${selectedTotal === item.key ? "active" : ""}`}
+                  aria-pressed={selectedTotal === item.key}
+                  style={{ "--stat-color": item.color } as CSSProperties}
+                  onClick={() => {
+                    void onSelectTotal(item.key);
+                  }}
+                >
+                  <span className="menubar-stat-emoji">
+                    <NavIcon className="menubar-stat-icon" />
+                  </span>
+                  <span className="menubar-stat-number">{item.value}</span>
+                  <span className="menubar-stat-label">{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
           <div className="menubar-time" aria-live="polite">
             {liveTime.toLocaleTimeString([], {
@@ -672,15 +739,60 @@ function App() {
                 ) : null}
 
                 {reflectionSources.length > 0 ? (
-                  <section className="reflection-source-list">
-                    {reflectionSources.map((entry) => (
-                      <article className="reflection-source-item" key={entry.id}>
-                        <p className="reflection-source-meta">{formatSourceDate(entry.created_at || null)}</p>
-                        {entry.daily_prompt ? <p className="reflection-source-prompt">Prompt: {entry.daily_prompt}</p> : null}
-                        <p>{entry.text}</p>
-                      </article>
-                    ))}
-                  </section>
+                  <>
+                    <section className="reflection-source-controls" role="group" aria-label="Reflection list controls">
+                      <label className="reflection-source-control">
+                        <span>source</span>
+                        <select
+                          value={reflectionsFilter}
+                          onChange={(event) =>
+                            setReflectionsFilter(event.target.value as "all" | "app" | "telegram_text" | "voice")
+                          }
+                        >
+                          <option value="all">all</option>
+                          <option value="app">app</option>
+                          <option value="telegram_text">telegram text</option>
+                          <option value="voice">voice</option>
+                        </select>
+                      </label>
+                      <label className="reflection-source-control">
+                        <span>sort</span>
+                        <select
+                          value={reflectionsSort}
+                          onChange={(event) => setReflectionsSort(event.target.value as "newest" | "oldest")}
+                        >
+                          <option value="newest">newest first</option>
+                          <option value="oldest">oldest first</option>
+                        </select>
+                      </label>
+                      <label className="reflection-source-control search">
+                        <span>search</span>
+                        <input
+                          value={reflectionsQuery}
+                          onChange={(event) => setReflectionsQuery(event.target.value)}
+                          placeholder="find text or prompt"
+                        />
+                      </label>
+                    </section>
+                    <p className="reflection-source-summary">
+                      Showing {visibleReflectionSources.length} of {reflectionSources.length}
+                    </p>
+                    {visibleReflectionSources.length === 0 ? (
+                      <p className="muted">No reflections match your filters.</p>
+                    ) : (
+                      <section className="reflection-source-list">
+                        {visibleReflectionSources.map((entry) => (
+                          <article className="reflection-source-item" key={entry.id}>
+                            <p className="reflection-source-meta">
+                              {formatSourceDate(entry.created_at || null)} • {formatReflectionSource(entry.source)}
+                            </p>
+                            {entry.daily_prompt ? <p className="reflection-source-prompt">Prompt: {entry.daily_prompt}</p> : null}
+                            <p>{entry.text}</p>
+                          </article>
+                        ))}
+                      </section>
+                    )}
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -693,32 +805,37 @@ function App() {
             className={activeTab === "reflect" ? "active" : ""}
             onClick={() => setActiveTab("reflect")}
           >
-            Reflect
+            reflect
           </button>
           <button
             type="button"
             className={activeTab === "patterns" ? "active" : ""}
             onClick={() => setActiveTab("patterns")}
           >
-            Patterns
+            patterns
           </button>
           <button
             type="button"
             className={activeTab === "ask" ? "active" : ""}
             onClick={() => setActiveTab("ask")}
           >
-            Ask
+            ask
           </button>
         </nav>
 
         {activeTab === "reflect" ? (
           <section className="card reflect-card">
-            <h2>Reflect</h2>
             <section className="prompt-row">
               <div className="prompt-head">
                 <p className="prompt-label">Today&apos;s Prompt</p>
-                <button type="button" className="prompt-refresh" onClick={fetchPrompt} title="Refresh prompt">
-                  ♻️
+                <button
+                  type="button"
+                  className="prompt-refresh"
+                  onClick={fetchPrompt}
+                  title="Refresh prompt"
+                  aria-label="Refresh daily prompt"
+                >
+                  <RefreshIcon className="prompt-refresh-icon" />
                 </button>
               </div>
               <p className="prompt-text">{dailyPrompt || "Loading prompt..."}</p>
@@ -753,6 +870,7 @@ function App() {
             {composerOpen ? (
               <>
                 <textarea
+                  className="reflect-textarea"
                   rows={8}
                   value={reflectionText}
                   placeholder='Try writing in your own words: "What happened? What did I feel in my body? Where did I get reactive or calm?"'

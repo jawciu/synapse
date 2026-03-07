@@ -53,6 +53,7 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD text ON reflection TYPE string""",
     """DEFINE FIELD created_at ON reflection TYPE datetime DEFAULT time::now()""",
     """DEFINE FIELD daily_prompt ON reflection TYPE option<string>""",
+    """DEFINE FIELD source ON reflection TYPE option<string>""",
 
     """DEFINE TABLE pattern SCHEMAFULL""",
     """DEFINE FIELD name ON pattern TYPE string""",

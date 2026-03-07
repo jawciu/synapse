@@ -42,6 +42,7 @@ class ReflectionRequest(BaseModel):
     reflection_text: str = Field(min_length=1, description="Raw reflection text")
     daily_prompt: str | None = Field(default=None, description="Optional prompt shown to user")
     thread_id: str | None = Field(default=None, description="Optional custom thread id for persistence")
+    source: str | None = Field(default="app", description="Reflection source: app, telegram_text, or voice")
 
 
 class ReflectionResponse(BaseModel):
@@ -64,6 +65,7 @@ class ReflectionSource(BaseModel):
     id: str
     text: str
     daily_prompt: str | None = None
+    source: str | None = None
     created_at: Any | None = None
 
 
@@ -84,6 +86,7 @@ def submit_reflection(payload: ReflectionRequest) -> ReflectionResponse:
             reflection_text=payload.reflection_text,
             daily_prompt=payload.daily_prompt,
             thread_id=payload.thread_id,
+            source=payload.source,
         )
         return ReflectionResponse.model_validate(graph_result)
     except Exception as exc:  # pragma: no cover - surfaced through API transport

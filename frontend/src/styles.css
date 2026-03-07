@@ -112,11 +112,19 @@ body {
 }
 
 .menubar-lotus {
-  font-size: 34px;
   width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
   text-align: center;
   justify-self: start;
+  color: #8c7f88;
   filter: drop-shadow(0 2px 6px rgba(125, 116, 111, 0.32));
+}
+
+.menubar-lotus-icon {
+  width: 34px;
+  height: 34px;
 }
 
 .menubar-stats {
@@ -125,18 +133,18 @@ body {
   gap: 14px;
   flex-wrap: wrap;
   align-items: center;
-  white-space: nowrap;
-  overflow-x: auto;
-  padding-bottom: 1px;
+  white-space: normal;
+  overflow: visible;
+  min-width: 0;
 }
 
 .menubar-stat {
   border: none;
   background: none;
   color: var(--stat-color, #6f6461);
-  padding: 0;
+  padding: 2px 8px 3px;
   margin: 0;
-  border-radius: 0;
+  border-radius: 10px;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -146,43 +154,40 @@ body {
   opacity: 0.82;
   transition:
     color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
     text-shadow 0.22s ease,
     opacity 0.22s ease,
     filter 0.22s ease;
-}
-
-.menubar-stat::after {
-  content: "";
-  position: absolute;
-  left: -6px;
-  right: -6px;
-  bottom: -4px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--stat-color, #ff7ea8), transparent);
-  opacity: 0;
-  transition: opacity 0.22s ease;
-  pointer-events: none;
 }
 
 .menubar-stat.active {
   color: var(--stat-color, #443f48);
   text-decoration: none;
   opacity: 1;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
-}
-
-.menubar-stat.active::after {
-  opacity: 0.9;
+  background: color-mix(in oklab, var(--stat-color, #ff7ea8), white 88%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--stat-color, #ff7ea8), white 66%),
+    0 2px 8px rgba(90, 80, 72, 0.08);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
 }
 
 .menubar-stat-emoji {
-  font-size: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+}
+
+.menubar-stat-icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
 }
 
 .menubar-stat-number {
   font-size: 21px;
-  font-weight: 750;
+  font-weight: 560;
   color: var(--stat-color, #ff7ea8);
   text-shadow: 0 0 14px color-mix(in oklab, var(--stat-color, #ff7ea8), white 72%);
   line-height: 1;
@@ -199,15 +204,13 @@ body {
 .menubar-stat:hover {
   color: var(--stat-color, #443f48);
   transform: none;
+  background: color-mix(in oklab, var(--stat-color, #ff7ea8), white 92%);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--stat-color, #ff7ea8), white 76%);
   text-shadow:
-    0 0 10px rgba(255, 255, 255, 0.7),
-    0 0 14px color-mix(in oklab, var(--stat-color, #ff7ea8), white 65%);
+    0 0 8px rgba(255, 255, 255, 0.65),
+    0 0 10px color-mix(in oklab, var(--stat-color, #ff7ea8), white 72%);
   opacity: 1;
-  animation: navGlow 1.25s ease-in-out infinite alternate;
-}
-
-.menubar-stat:hover::after {
-  opacity: 0.78;
+  animation: navGlow 1.05s ease-in-out infinite alternate;
 }
 
 @keyframes navGlow {
@@ -301,8 +304,9 @@ body {
   min-width: 138px;
   padding: 12px 22px;
   font-size: 17px;
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: 0.01em;
+  text-transform: lowercase;
   background: linear-gradient(180deg, #f8f2e8, #f4ecdf);
   border-color: #d5c4b3;
   box-shadow: 0 6px 12px rgba(109, 95, 83, 0.08);
@@ -342,6 +346,24 @@ button.active {
   background: linear-gradient(100deg, var(--rose), var(--lavender));
   color: #4f3a4d;
   border-color: #ceb7dd;
+}
+
+/* Keep tabs visually tab-like after the generic button rules above. */
+.tabs button {
+  border-radius: 14px;
+  min-width: 138px;
+  padding: 12px 22px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+  background: linear-gradient(180deg, #f8f2e8, #f4ecdf);
+  border-color: #d5c4b3;
+  box-shadow: 0 6px 12px rgba(109, 95, 83, 0.08);
+}
+
+.tabs button:hover {
+  border-color: #c9b7a5;
 }
 
 .tabs button.active {
@@ -421,13 +443,29 @@ textarea {
 
 .prompt-refresh {
   align-self: center;
-  border: none;
-  background: transparent;
+  border: 1px solid #cdbca7;
+  background: linear-gradient(180deg, #fbf6ee, #f5ecde);
   border-radius: 999px;
-  min-width: 0;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  font-size: 19px;
-  line-height: 1;
+  color: #6f6661;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prompt-refresh:hover {
+  transform: none;
+  color: #4d4444;
+  border-color: #b9a58f;
+  background: linear-gradient(180deg, #fff9f1, #f4e8d8);
+}
+
+.prompt-refresh-icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.1;
 }
 
 .reflect-actions {
@@ -435,7 +473,7 @@ textarea {
   justify-content: center;
   gap: 14px;
   flex-wrap: wrap;
-  margin: 8px 0 24px;
+  margin: 8px 0 34px;
 }
 
 .reflect-actions button {
@@ -452,6 +490,10 @@ textarea {
 .reflect-submit-wrap {
   display: flex;
   justify-content: center;
+}
+
+.reflect-textarea {
+  margin-top: 4px;
 }
 
 .reflect-submit-button {
@@ -605,6 +647,45 @@ textarea {
   gap: 10px;
 }
 
+.reflection-source-controls {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 10px;
+}
+
+.reflection-source-control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.reflection-source-control span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+.reflection-source-control select,
+.reflection-source-control input {
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(247, 240, 230, 0.78);
+  color: var(--text);
+}
+
+.reflection-source-control.search {
+  grid-column: span 1;
+}
+
+.reflection-source-summary {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
 .reflection-source-item {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -629,7 +710,8 @@ textarea {
   .result-grid,
   .panel-grid,
   .split-list,
-  .category-grid {
+  .category-grid,
+  .reflection-source-controls {
     grid-template-columns: 1fr;
   }
 

@@ -16,6 +16,8 @@ from .prompts import get_daily_prompt
 _reflection_graph = None
 _chat_agent = None
 
+_VALID_REFLECTION_SOURCES = {"app", "telegram_text", "voice"}
+
 
 @dataclass(slots=True)
 class ChatMessage:
@@ -25,6 +27,26 @@ class ChatMessage:
 
 def _normalize_thread_id(thread_id: str | None, prefix: str) -> str:
     return thread_id or f"{prefix}-{uuid.uuid4()}"
+
+
+def _normalize_reflection_source(source: str | None) -> str:
+    if not source:
+        return "app"
+    normalized = source.strip().lower().replace("-", "_").replace(" ", "_")
+    alias_map = {
+        "telegram": "telegram_text",
+        "telegram_text": "telegram_text",
+        "telegramtext": "telegram_text",
+        "telegram_voice": "voice",
+        "telegramvoice": "voice",
+        "voice_note": "voice",
+        "voice": "voice",
+        "app": "app",
+    }
+    mapped = alias_map.get(normalized, normalized)
+    if mapped in _VALID_REFLECTION_SOURCES:
+        return mapped
+    return "app"
 
 
 def _ensure_graph():
@@ -41,15 +63,22 @@ def _ensure_chat():
     return _chat_agent
 
 
-def run_reflection_pipeline(reflection_text: str, daily_prompt: str | None, thread_id: str | None) -> dict[str, Any]:
+def run_reflection_pipeline(
+    reflection_text: str,
+    daily_prompt: str | None,
+    thread_id: str | None,
+    source: str | None = None,
+) -> dict[str, Any]:
     graph = _ensure_graph()
     _init()
 
     active_thread = _normalize_thread_id(thread_id, "reflection-session")
+    active_source = _normalize_reflection_source(source)
     result = graph.invoke(
         {
             "reflection_text": reflection_text,
             "daily_prompt": daily_prompt,
+            "source": active_source,
             "messages": [],
         },
         config={"configurable": {"thread_id": active_thread}},
@@ -209,7 +238,7 @@ def get_reflections() -> list[dict[str, Any]]:
     if _conn is None:
         return []
 
-    rows = _conn.query("SELECT id, text, daily_prompt, created_at FROM reflection ORDER BY created_at DESC")
+    rows = _conn.query("SELECT id, text, daily_prompt, source, created_at FROM reflection ORDER BY created_at DESC")
     if not rows or isinstance(rows, str):
         return []
 
@@ -222,6 +251,7 @@ def get_reflections() -> list[dict[str, Any]]:
                 "id": str(row.get("id", "")),
                 "text": row.get("text", ""),
                 "daily_prompt": row.get("daily_prompt"),
+                "source": _normalize_reflection_source(row.get("source")),
                 "created_at": row.get("created_at"),
             }
         )

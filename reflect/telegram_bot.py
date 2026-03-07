@@ -82,7 +82,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         config = {"configurable": {"thread_id": f"tg-reflect-{user_id}-{count}"}}
 
         result = reflection_graph.invoke(
-            {"reflection_text": text, "daily_prompt": None, "messages": []},
+            {"reflection_text": text, "daily_prompt": None, "source": "telegram_text", "messages": []},
             config=config,
         )
 
@@ -149,7 +149,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     config = {"configurable": {"thread_id": f"tg-reflect-{user_id}-{count}"}}
 
     result = reflection_graph.invoke(
-        {"reflection_text": text, "daily_prompt": None, "messages": []},
+        {"reflection_text": text, "daily_prompt": None, "source": "voice", "messages": []},
         config=config,
     )
 

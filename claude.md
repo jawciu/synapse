@@ -32,6 +32,8 @@ The repo is small but mostly complete as a demo:
 - LangSmith decorators are present on the main pipeline and graph functions.
 - Seed data exists and is intentionally written to create cross-entry childhood and relationship patterns.
 - Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; the primary submit action is a wide centered `reflect` button.
+- Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
+- The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 
 What is not present:
 
@@ -73,8 +75,9 @@ What is not present:
 - [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py): 6-node LangGraph reflection pipeline
 - [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py): graph Q&A ReAct agent
 - [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py): extraction/chat/insight/follow-up prompts plus daily prompts
-- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes, plus `/api/reflections` for reflection source retrieval
+- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes, plus `/api/reflections` for reflection source retrieval with source metadata (`app` / `telegram_text` / `voice`)
 - [frontend/](/Users/ian/dev/synapse/frontend): Vite + TypeScript React UI scaffold
+- [frontend/src/icons.tsx](/Users/ian/dev/synapse/frontend/src/icons.tsx): local OSS-style SVG icon components used by the navbar and prompt refresh action
 
 ## Runtime model
 
@@ -228,6 +231,7 @@ The schema is defined in `SCHEMA_STATEMENTS` in [reflect/db.py](/Users/ian/dev/s
   - `text`
   - `created_at`
   - `daily_prompt`
+  - `source`
 - `pattern`
   - `name`
   - `category`
@@ -489,8 +493,9 @@ Use [`README.md`](/Users/ian/dev/synapse/README.md) for the canonical onboarding
 The recommended local runner is:
 
 - `just sync`
-- `just dev`
-- `just stop` (to shut down both services)
+- `just dev` (runs backend + frontend + Telegram bot)
+- `just stop` (to shut down all three services)
+- `just telegram` (optional standalone bot runner)
 
 ### Install dependencies
 
@@ -515,6 +520,14 @@ npm run dev
 ```
 
 This expects the API on `http://localhost:8000`; set `VITE_API_URL` and `CORS_ORIGINS` for different host/ports.
+
+### Run the Telegram bot
+
+```bash
+just telegram
+```
+
+This loads `.env` via `python-dotenv`; `TELEGRAM_BOT_TOKEN` must be set.
 
 ### Seed the demo graph
 
