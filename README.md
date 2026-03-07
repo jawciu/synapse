@@ -1,6 +1,6 @@
 # synapse
 
-**Journaling that remembers.**
+**Journaling that remembers and reasons in context.**
 
 Synapse is a memory-first reflection agent built for the London LangChain x SurrealDB Hackathon.
 It turns unstructured reflections into a persistent knowledge graph, then answers questions from that evolving graph context.
@@ -29,15 +29,6 @@ Start chat: [@synapse_helper_bot](https://t.me/synapse_helper_bot)
 4. Or send a voice note; Synapse transcribes it and runs the same reflection pipeline.
 5. If you already have a web account, use `/link` to connect Telegram to that account.
 
-### Cross-channel account flow (important)
-
-1. **Website first (recommended):** create your account on web, then open Telegram and run `/link` with the same credentials.
-2. **Telegram first:** create account in-bot (email + password), then log into web with the same credentials.
-3. In both cases, web + Telegram activity lands in the same user graph when you use the same account.
-4. Avoid creating separate accounts with different emails, or your history will be split.
-
----
-
 ## Why this project exists
 
 Most AI journaling tools are stateless or shallowly stateful. They can sound empathetic, but they forget pattern history and repeat generic advice.
@@ -50,10 +41,46 @@ Synapse is built to solve that:
 
 ---
 
+## Psychotherapy methodologies behind Synapse
+
+Synapse is grounded in established reflection methodologies, not generic motivational output:
+
+- **CBT (Cognitive Behavioral Therapy):** captures recurring thinking distortions and behavioral loops.
+- **DBT (Dialectical Behavior Therapy):** tracks emotional intensity/valence and trigger patterns.
+- **IFS (Internal Family Systems):** identifies internal parts (`manager`, `firefighter`, `exile`) and when they activate.
+- **Schema Therapy:** maps deeper repeating schemas (for example abandonment or unrelenting standards) plus coping style (`surrender`, `avoidance`, `overcompensation`).
+
+How this links to the system end-to-end:
+
+1. The extraction agent applies these lenses to each reflection and outputs structured JSON.
+2. SurrealDB stores each lens as durable graph entities and relationships.
+3. LangGraph queries historical graph context before synthesis, so insights reflect trajectory over time.
+4. The chat agent uses graph tools to answer from concrete history: patterns, people, triggers, body signals, and schema/IFS context.
+
+This is the core product value: clinically informed reflection frameworks translated into persistent machine-readable memory, then used by agents for more reliable and useful guidance.
+
+Important boundary: Synapse is a reflection tool and pattern coach, not a replacement for therapy or medical care.
+
+---
+
+## Safeguards implemented
+
+Synapse includes explicit safety and reliability guardrails across prompts and runtime behavior:
+
+- **Safety guardrails on every prompt:** crisis-response instructions, non-diagnostic constraints, and non-pathologizing language are prepended across extraction, chat, insight, and follow-up prompts.
+- **Crisis-oriented instruction set:** prompts include explicit crisis resource routing (UK/US/international) and direct the model to prioritize immediate support language.
+- **Data sensitivity rule:** prompts instruct the system to summarize patterns from history rather than unexpectedly quoting sensitive past reflection text.
+- **Strict structured-output contracts:** extraction is instructed to return JSON-only; follow-up generation is instructed to return exactly 3 questions in JSON array format.
+- **Fail-safe parsing behavior:** if extraction or follow-up parsing fails, the pipeline degrades gracefully to safe fallback outputs instead of crashing request flow.
+- **Input normalization and tenancy boundaries:** reflection source values are normalized to known enums, and core graph/data queries are user-scoped by `user_id`.
+- **Protected API surface:** reflection/chat/dashboard endpoints require JWT auth.
+
+---
+
 ## What Synapse does today
 
 - Ingests reflections through a 6-node LangGraph pipeline
-- Extracts patterns/emotions/themes/IFS parts/schemas/people/body signals
+- Extracts patterns/emotions/themes/IFS parts/schemas/people/body signals using CBT/DBT/IFS/Schema Therapy lenses
 - Persists graph entities + typed relations + vector embeddings in SurrealDB
 - Generates personalized insights and follow-up questions
 - Supports conversational "ask your graph" analysis with a ReAct tool-calling agent
@@ -73,6 +100,39 @@ Bot link: [@synapse_helper_bot](https://t.me/synapse_helper_bot)
 - **Text reflections in Telegram:** send your reflection as a message and Synapse returns extracted patterns, emotions, insights, and follow-up prompts.
 - **Voice-note reflections in Telegram:** send a voice note, Synapse transcribes it with `whisper-1`, then runs the same LangGraph reflection pipeline.
 - **Shared memory model:** Telegram and web reflections land in the same user-scoped SurrealDB graph, so context compounds across channels.
+
+---
+
+## Evaluation and testing approach
+
+We implemented a dedicated eval harness in [`evals.py`](evals.py):
+
+```bash
+uv run python evals.py
+```
+
+### Evals we run
+
+1. **Extraction quality eval (`eval_extraction`)**
+- Runs multiple curated reflection cases.
+- Checks expected pattern/person/emotion/body-signal/IFS-schema coverage.
+- Produces per-case scores and misses for fast prompt iteration.
+
+2. **Graph integrity eval (`eval_graph_integrity`)**
+- Checks for orphaned reflections, duplicate entities, invalid IFS roles, and invalid co-occurrence edges.
+- Verifies embedding coverage across key node tables.
+
+3. **Chat grounding eval (`eval_chat_grounding`)**
+- Uses must-mention and must-not-mention assertions on targeted questions.
+- Designed to catch grounding regressions and hallucinated claims.
+
+4. **Pipeline performance eval (`eval_performance`)**
+- Measures full reflection pipeline latency.
+- Reports extracted entity counts and points to LangSmith traces for node-level timing.
+
+### Observability during evals
+
+All eval suites are `@traceable`, so run data is inspectable in LangSmith under `eval_*` traces for deeper debugging and regression review.
 
 ---
 
@@ -129,6 +189,31 @@ The reflection workflow in `reflect/agent.py` is a typed `StateGraph` with expli
 - Extraction agent (`reflect/extraction.py`) uses `create_react_agent` and must call retrieval tools before extraction.
 - Chat agent (`reflect/chat_agent.py`) uses `create_react_agent` with 14 tools from `reflect/graph_store.py` (overview, deep-dive, trigger, temporal, and hybrid search tools).
 - Chat streaming (`/api/chat/stream`) emits SSE tokens from `astream_events` in `reflect/service.py`.
+- Prompts encode therapeutic framing and safety boundaries so outputs stay observational and non-diagnostic.
+
+### Tool layer detail (what the agents can actually do)
+
+Extraction tools (used before pattern extraction):
+
+- `retrieve_similar_reflections(query)`: semantic retrieval of relevant prior reflections for context.
+- `get_existing_patterns()`: fetches current graph patterns so extraction reuses canonical labels.
+
+Chat tools (14-tool runtime):
+
+- `hybrid_graph_search(query)`: semantic KNN lookup across pattern/IFS/schema/person/theme nodes.
+- `get_all_patterns_overview()`: frequency-ranked pattern inventory plus co-occurrence summary.
+- `get_all_emotions_overview()`: emotion inventory with trigger summary.
+- `get_ifs_parts_overview()`: IFS parts with role + source reflection context.
+- `get_schemas_overview()`: schema patterns with domain/coping style + source reflections.
+- `get_people_overview()`: people entities, relationship types, and triggered patterns.
+- `get_person_deep_dive(person_name)`: full relationship impact drill-down for one person.
+- `get_body_signals_overview()`: somatic markers and occurrence frequency.
+- `get_deep_pattern_analysis(pattern_name)`: roots/context for a specific pattern across graph links.
+- `get_graph_summary()`: top-level graph totals and key connection snapshot.
+- `get_emotion_triggers(emotion_name)`: themes linked to a specific emotion.
+- `get_pattern_connections(pattern_name)`: co-occurring patterns and linked reflections.
+- `get_temporal_evolution(pattern_name)`: timeline view of pattern appearance over reflections.
+- `semantic_search_reflections(query)`: reflection-document semantic retrieval for grounded quoting/synthesis.
 
 ### Memory and state
 
@@ -192,9 +277,8 @@ Synapse uses SurrealDB as both:
 
 ---
 
-## Hackathon materials
+## Project docs
 
-- Event brief: [`london-hackathon-full-details.md`](london-hackathon-full-details.md)
 - Pitch + demo playbook: [`pitch/PITCH_PLAYBOOK.md`](pitch/PITCH_PLAYBOOK.md)
 - Architecture deep dive: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
