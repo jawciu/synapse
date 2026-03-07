@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from reflect.service import (
     daily_prompt,
     get_dashboard_payload,
+    get_reflections,
     run_chat,
     run_reflection_pipeline,
     stream_chat,
@@ -57,6 +58,13 @@ class AskResponse(BaseModel):
     thread_id: str
     answer: str
     messages: list[dict[str, str]]
+
+
+class ReflectionSource(BaseModel):
+    id: str
+    text: str
+    daily_prompt: str | None = None
+    created_at: Any | None = None
 
 
 @app.get("/health")
@@ -125,3 +133,11 @@ def dashboard(limit: int = Query(default=8, ge=1, le=20)) -> dict[str, Any]:
         return payload
     except Exception as exc:  # pragma: no cover - surfaced through API transport
         raise HTTPException(status_code=500, detail=f"Failed to load dashboard: {exc}") from exc
+
+
+@app.get("/api/reflections", response_model=list[ReflectionSource])
+def reflections() -> list[ReflectionSource]:
+    try:
+        return [ReflectionSource.model_validate(reflection) for reflection in get_reflections()]
+    except Exception as exc:  # pragma: no cover - surfaced through API transport
+        raise HTTPException(status_code=500, detail=f"Failed to load reflections: {exc}") from exc

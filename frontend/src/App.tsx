@@ -100,6 +100,13 @@ type ReflectionResponse = {
   result: ReflectionPayload;
 };
 
+type ReflectionSource = {
+  id: string;
+  text: string;
+  daily_prompt?: string | null;
+  created_at?: string | null;
+};
+
 type ChatMessage = {
   role: "user" | "assistant" | "ai";
   content: string;
@@ -111,10 +118,20 @@ type ChatResponse = {
   messages: Array<{ role?: string; content: string }>;
 };
 
+type TotalSelection = "reflections" | "patterns" | "emotions" | "themes" | "people" | "bodySignals";
+
 type View = "reflect" | "patterns" | "ask";
 
 const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL ?? "http://localhost:8000";
 const categories = ["cognitive", "emotional", "relational", "behavioral"] as const;
+const TOTAL_LABELS: Record<TotalSelection, string> = {
+  reflections: "reflections",
+  patterns: "patterns",
+  emotions: "emotions",
+  themes: "themes",
+  people: "people",
+  bodySignals: "body signals",
+};
 
 const THEME_COLORS = {
   primary: "#8ab4f8",
@@ -213,21 +230,71 @@ function safeSlice<T>(items: T[], size = 0): T[] {
   return size > 0 ? items.slice(0, size) : items;
 }
 
+function formatSourceDate(value: string | null | undefined): string {
+  if (!value) {
+    return "Unknown date";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function buildPromptDraft(prompt: string): string {
+  const resolvedPrompt = prompt.trim() || "What felt most alive in your body today?";
+  return [
+    `Prompt: ${resolvedPrompt}`,
+    "",
+    "Short answer:",
+    "[In 2-3 sentences, answer the prompt directly.]",
+    "",
+    "What happened (facts):",
+    "[What happened, where, and with whom?]",
+    "",
+    "What I felt in my body:",
+    "[Sensations: chest, stomach, shoulders, breath, etc.]",
+    "",
+    "What I felt emotionally:",
+    "[Emotions + intensity, for example: anxious 7/10, relieved 4/10.]",
+    "",
+    "What pattern I noticed:",
+    "[Any repeating thought, behavior, or reaction.]",
+    "",
+    "What I might try next:",
+    "[One small action I can take today or tomorrow.]",
+  ].join("\n");
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<View>("reflect");
   const [dailyPrompt, setDailyPrompt] = useState("");
   const [reflectionText, setReflectionText] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
   const [reflectionBusy, setReflectionBusy] = useState(false);
   const [reflectionError, setReflectionError] = useState("");
   const [lastReflection, setLastReflection] = useState<ReflectionPayload | null>(null);
 
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [dashboardBusy, setDashboardBusy] = useState(false);
+  const [liveTime, setLiveTime] = useState(() => new Date());
 
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatThread, setChatThread] = useState<string | null>(null);
+  const [selectedTotal, setSelectedTotal] = useState<TotalSelection | null>(null);
+  const [reflectionSources, setReflectionSources] = useState<ReflectionSource[]>([]);
+  const [sourcesBusy, setSourcesBusy] = useState(false);
+  const [sourcesError, setSourcesError] = useState("");
 
   useEffect(() => {
     const initialize = async () => {
@@ -236,6 +303,15 @@ function App() {
     };
 
     initialize();
+  }, []);
+
+  useEffect(() => {
+    const tick = () => setLiveTime(new Date());
+    tick();
+    const intervalId = setInterval(tick, 1000);
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   const fetchPrompt = async () => {
@@ -276,6 +352,47 @@ function App() {
     }
   };
 
+  const fetchReflectionSources = async () => {
+    setSourcesBusy(true);
+    setSourcesError("");
+    try {
+      const response = await fetch(`${API_URL}/api/reflections`);
+      const payload = (await response.json()) as ReflectionSource[] | { detail?: string };
+      if (!response.ok) {
+        const errorMessage = (payload as { detail?: string }).detail;
+        throw new Error(errorMessage || "Unable to load reflection sources.");
+      }
+
+      setReflectionSources(
+        Array.isArray(payload)
+          ? payload.map((item) => ({
+              ...item,
+              id: String(item.id),
+              text: item.text || "",
+              daily_prompt: item.daily_prompt || null,
+              created_at: item.created_at || null,
+            }))
+          : [],
+      );
+    } catch (error) {
+      setSourcesError((error as Error).message || "Could not load reflection sources.");
+    } finally {
+      setSourcesBusy(false);
+    }
+  };
+
+  const onSelectTotal = async (selection: TotalSelection) => {
+    setSelectedTotal(selection);
+    if (selection === "reflections") {
+      await fetchReflectionSources();
+      return;
+    }
+
+    setSourcesBusy(false);
+    setSourcesError("");
+    setReflectionSources([]);
+  };
+
   const submitReflection = async () => {
     if (!reflectionText.trim()) {
       return;
@@ -302,6 +419,7 @@ function App() {
 
       setLastReflection(payload.result);
       setReflectionText("");
+      setComposerOpen(false);
       await fetchDashboard();
     } catch (error) {
       setReflectionError((error as Error).message || "Could not process reflection.");
@@ -478,45 +596,97 @@ function App() {
     };
   }, [dashboard]);
 
+  const totalCards = useMemo(
+    () => [
+      { key: "reflections" as const, label: "reflections", value: totals.reflections, emoji: "📓", color: "#ff7ea8" },
+      { key: "patterns" as const, label: "patterns", value: totals.patterns, emoji: "🧠", color: "#78a8ff" },
+      { key: "emotions" as const, label: "emotions", value: totals.emotions, emoji: "💗", color: "#ff6f7d" },
+      { key: "themes" as const, label: "themes", value: totals.themes, emoji: "🌙", color: "#9f8bff" },
+      { key: "people" as const, label: "people", value: totals.people, emoji: "🫂", color: "#ff9f58" },
+      { key: "bodySignals" as const, label: "body signals", value: totals.bodySignals, emoji: "⚡", color: "#35bda7" },
+    ],
+    [totals],
+  );
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <p className="logo">synapse</p>
-        <p className="subhead">TypeScript dashboard over the same LangGraph pipeline.</p>
-
-        <section className="card panel">
-          <h2>Daily Prompt</h2>
-          <p>{dailyPrompt || "Loading prompt..."}</p>
-          <div className="row-actions">
-            <button type="button" onClick={fetchPrompt}>
-              new prompt
-            </button>
-            <button type="button" onClick={() => setReflectionText(dailyPrompt)}>
-              use prompt
-            </button>
-          </div>
-        </section>
-
-        <section className="card panel">
-          <h2>Session</h2>
-          <p>Chat thread: {chatThread ? chatThread.slice(0, 18) : "new"}</p>
-          <button type="button" onClick={() => setChatThread(null)}>
-            new conversation
-          </button>
-        </section>
-
-        <section className="card panel stat-grid">
-          <h2>Totals</h2>
-          <p>{totals.reflections} reflections</p>
-          <p>{totals.patterns} patterns</p>
-          <p>{totals.emotions} emotions</p>
-          <p>{totals.themes} themes</p>
-          <p>{totals.people} people</p>
-          <p>{totals.bodySignals} body signals</p>
-        </section>
-      </aside>
-
       <main className="content">
+        <header className="menubar">
+          <span className="menubar-lotus" aria-label="Synapse home">
+            🪷
+          </span>
+          <nav className="menubar-stats" aria-label="Totals">
+            {totalCards.map((item) => (
+              <button
+                type="button"
+                key={item.key}
+                className={`menubar-stat ${selectedTotal === item.key ? "active" : ""}`}
+                aria-pressed={selectedTotal === item.key}
+                style={{ "--stat-color": item.color } as React.CSSProperties}
+                onClick={() => {
+                  void onSelectTotal(item.key);
+                }}
+              >
+                <span className="menubar-stat-emoji">{item.emoji}</span>
+                <span className="menubar-stat-number">{item.value}</span>
+                <span className="menubar-stat-label">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="menubar-time" aria-live="polite">
+            {liveTime.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
+          </div>
+        </header>
+
+        <header className="hero">
+          <p className="logo">synapse</p>
+        </header>
+
+        {selectedTotal ? (
+          <section className="card panel">
+            <div className="panel-head">
+              <h2>
+                {selectedTotal === "reflections" ? "All Reflections" : `${TOTAL_LABELS[selectedTotal]} source view`}
+              </h2>
+              <button type="button" onClick={() => setSelectedTotal(null)}>
+                close
+              </button>
+            </div>
+
+            {selectedTotal !== "reflections" ? (
+              <p className="muted">
+                Source drill-down for <strong>{TOTAL_LABELS[selectedTotal]}</strong> is not implemented yet.
+              </p>
+            ) : null}
+
+            {selectedTotal === "reflections" ? (
+              <>
+                {sourcesBusy ? <p className="muted">Loading all reflections...</p> : null}
+                {sourcesError ? <p className="error">{sourcesError}</p> : null}
+                {!sourcesBusy && !sourcesError && reflectionSources.length === 0 ? (
+                  <p className="muted">No reflections found yet.</p>
+                ) : null}
+
+                {reflectionSources.length > 0 ? (
+                  <section className="reflection-source-list">
+                    {reflectionSources.map((entry) => (
+                      <article className="reflection-source-item" key={entry.id}>
+                        <p className="reflection-source-meta">{formatSourceDate(entry.created_at || null)}</p>
+                        {entry.daily_prompt ? <p className="reflection-source-prompt">Prompt: {entry.daily_prompt}</p> : null}
+                        <p>{entry.text}</p>
+                      </article>
+                    ))}
+                  </section>
+                ) : null}
+              </>
+            ) : null}
+          </section>
+        ) : null}
+
         <nav className="tabs" role="tablist" aria-label="Primary tabs">
           <button
             type="button"
@@ -542,19 +712,64 @@ function App() {
         </nav>
 
         {activeTab === "reflect" ? (
-          <section className="card">
+          <section className="card reflect-card">
             <h2>Reflect</h2>
-            <textarea
-              rows={7}
-              value={reflectionText}
-              placeholder="Write your reflection..."
-              onChange={(event) => setReflectionText(event.target.value)}
-            />
-            <div className="toolbar">
-              <button type="button" onClick={submitReflection} disabled={reflectionBusy || !reflectionText.trim()}>
-                {reflectionBusy ? "Analyzing..." : "Submit Reflection"}
+            <section className="prompt-row">
+              <div className="prompt-head">
+                <p className="prompt-label">Today&apos;s Prompt</p>
+                <button type="button" className="prompt-refresh" onClick={fetchPrompt} title="Refresh prompt">
+                  ♻️
+                </button>
+              </div>
+              <p className="prompt-text">{dailyPrompt || "Loading prompt..."}</p>
+              <p className="prompt-cue">
+                Start with a concrete moment, then describe what you noticed in your body, your thoughts, and any
+                pattern that kept repeating.
+              </p>
+            </section>
+            <div className="toolbar reflect-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setComposerOpen(true);
+                  setReflectionError("");
+                  setReflectionText(buildPromptDraft(dailyPrompt));
+                }}
+              >
+                Use prompt
+              </button>
+              <button
+                type="button"
+                className="start-fresh-button"
+                onClick={() => {
+                  setComposerOpen(true);
+                  setReflectionError("");
+                  setReflectionText("");
+                }}
+              >
+                Start fresh
               </button>
             </div>
+            {composerOpen ? (
+              <>
+                <textarea
+                  rows={8}
+                  value={reflectionText}
+                  placeholder='Try writing in your own words: "What happened? What did I feel in my body? Where did I get reactive or calm?"'
+                  onChange={(event) => setReflectionText(event.target.value)}
+                />
+                <div className="toolbar reflect-submit-wrap">
+                  <button
+                    type="button"
+                    className="reflect-submit-button"
+                    onClick={submitReflection}
+                    disabled={reflectionBusy || !reflectionText.trim()}
+                  >
+                    reflect
+                  </button>
+                </div>
+              </>
+            ) : null}
             {reflectionError ? <p className="error">{reflectionError}</p> : null}
 
             {lastReflection ? (

@@ -202,5 +202,31 @@ def get_dashboard_payload() -> dict[str, Any]:
     }
 
 
+def get_reflections() -> list[dict[str, Any]]:
+    _init()
+    from .agent import _conn
+
+    if _conn is None:
+        return []
+
+    rows = _conn.query("SELECT id, text, daily_prompt, created_at FROM reflection ORDER BY created_at DESC")
+    if not rows or isinstance(rows, str):
+        return []
+
+    parsed: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        parsed.append(
+            {
+                "id": str(row.get("id", "")),
+                "text": row.get("text", ""),
+                "daily_prompt": row.get("daily_prompt"),
+                "created_at": row.get("created_at"),
+            }
+        )
+    return parsed
+
+
 def daily_prompt() -> str:
     return get_daily_prompt()

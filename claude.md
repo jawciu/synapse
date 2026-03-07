@@ -31,6 +31,7 @@ The repo is small but mostly complete as a demo:
 - OpenAI used for embeddings and LLM steps.
 - LangSmith decorators are present on the main pipeline and graph functions.
 - Seed data exists and is intentionally written to create cross-entry childhood and relationship patterns.
+- Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; the primary submit action is a wide centered `reflect` button.
 
 What is not present:
 
@@ -72,7 +73,7 @@ What is not present:
 - [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py): 6-node LangGraph reflection pipeline
 - [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py): graph Q&A ReAct agent
 - [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py): extraction/chat/insight/follow-up prompts plus daily prompts
-- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes
+- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes, plus `/api/reflections` for reflection source retrieval
 - [frontend/](/Users/ian/dev/synapse/frontend): Vite + TypeScript React UI scaffold
 
 ## Runtime model
