@@ -1,161 +1,259 @@
 # synapse
 
-Hackathon prototype for reflective journaling with a LangGraph + SurrealDB backend and now a TypeScript frontend path.
+**A stateful reflection agent powered by LangGraph + SurrealDB.**
 
-## Backend
+Synapse turns journaling into a persistent knowledge graph, then lets users query that graph conversationally to surface patterns, triggers, and relationships over time.
 
-- Python 3.12+ + LangGraph + SurrealDB.
-- FastAPI app exposing reflection/chat/dashboard endpoints in [`api_server.py`](/Users/ian/dev/synapse/api_server.py).
+Built for the **London LangChain x SurrealDB Hackathon**.
 
-## Frontend
+---
 
-- TypeScript/Vite React app under [`frontend/`](/Users/ian/dev/synapse/frontend).
-- Modern charts via Recharts.
-- Talks to the backend on `http://localhost:8000` by default.
+## The one-line pitch
 
-## Quick start
+Most AI journaling demos forget everything after each response. Synapse keeps durable, structured memory so the agent can reason across time instead of only reacting to the last message.
 
-1) Install `just` (if missing)
+---
 
-```bash
-# Install Homebrew (macOS) if needed
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+## Why this matters
 
-Then install `just`:
+Personal reflection is not a single-turn problem. Real insight comes from repeated patterns:
+
+- the same trigger showing up across weeks
+- the same person activating the same emotional loop
+- the same body signal appearing before shutdown or anxiety
+
+Synapse is designed to make that history queryable and useful.
+
+---
+
+## What we built
+
+### 1) Reflection Ingestion Agent (LangGraph)
+
+A 6-node pipeline processes each reflection:
+
+1. `store_reflection`
+2. `extract_patterns`
+3. `update_graph`
+4. `query_graph`
+5. `generate_insights`
+6. `generate_followups`
+
+The graph starts with two parallel entry points (`store_reflection` and `extract_patterns`) and joins for graph updates.
+
+### 2) Agentic extraction with retrieval grounding
+
+Before extraction, the agent explicitly calls tools to:
+
+- fetch existing patterns from the graph
+- retrieve semantically similar reflections
+
+That reduces duplicate labels and improves consistency over time.
+
+### 3) Persistent memory in SurrealDB
+
+Synapse stores both:
+
+- **graph memory** (patterns, emotions, themes, IFS parts, schemas, people, body signals + typed edges)
+- **vector memory** (semantic retrieval over reflections and embedded graph nodes)
+
+### 4) Conversational "ask your graph" agent
+
+A ReAct chat agent answers questions using 14 graph/search tools (including hybrid semantic graph search and person deep-dives), grounded in stored user data.
+
+### 5) Product surfaces shipped
+
+- Web app (React + TypeScript):
+  - auth (register/login)
+  - `reflect` tab for ingestion
+  - `talk` tab for conversational analysis
+  - interactive drill-downs for reflections, patterns, emotions, themes, people, and body signals
+- API (FastAPI): reflection, chat (standard + streaming SSE), dashboard, people analytics
+- Telegram bot: text and voice-note reflection ingestion (voice transcription via `whisper-1`)
+
+---
+
+## Why this is a strong LangChain x SurrealDB project
+
+### Structured memory / knowledge usage (SurrealDB)
+
+- Persistent graph entities and relations, not flat logs
+- User-scoped storage with evolving node occurrence counts
+- Graph + vector hybrid retrieval over the same knowledge surface
+
+### Agent workflow quality (LangChain / LangGraph)
+
+- Explicit multi-step pipeline with state handoff
+- Tool-using extraction and tool-using chat agents
+- Grounded answers based on graph lookups, not generic prompting
+
+### Persistent agent state
+
+- LangGraph `MemorySaver` thread continuity
+- Durable storage in SurrealDB across sessions and channels (web + Telegram)
+
+### Practical use case
+
+- Real reflection workflow where longitudinal context is essential
+- Actionable outputs: insights, follow-up questions, and relationship-focused key actions
+
+### Observability
+
+- LangSmith `@traceable` decorators across pipeline and graph operations
+
+---
+
+## Demo and judging materials
+
+- Hackathon brief: [`london-hackathon-full-details.md`](/Users/ian/dev/synapse/london-hackathon-full-details.md)
+- Full live-demo + video pitch playbook: [`pitch/PITCH_PLAYBOOK.md`](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md)
+- System architecture deep dive: [`ARCHITECTURE.md`](/Users/ian/dev/synapse/ARCHITECTURE.md)
+
+---
+
+## Tech stack
+
+- **Orchestration:** LangGraph + LangChain
+- **Backend:** FastAPI (Python 3.12+)
+- **Frontend:** React + TypeScript (Vite)
+- **Database:** SurrealDB (graph + vector)
+- **Embeddings:** OpenAI `text-embedding-3-small`
+- **Extraction + chat agents:** Anthropic `claude-sonnet-4-6`
+- **Insight/follow-up generation:** OpenAI `gpt-5-mini`
+- **Voice transcription (Telegram):** OpenAI `whisper-1`
+- **Charts/UI analytics:** Recharts
+- **Tracing:** LangSmith
+
+---
+
+## API surface
+
+### Public health
+
+- `GET /health`
+
+### Auth
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/reset-request`
+- `POST /api/auth/reset-confirm`
+
+### Protected app routes (Bearer token required)
+
+- `GET /api/daily-prompt`
+- `POST /api/reflection`
+- `POST /api/chat`
+- `POST /api/chat/stream` (SSE)
+- `GET /api/dashboard`
+- `GET /api/people`
+- `GET /api/reflections`
+
+---
+
+## Deployment
+
+Render Blueprint file: [`render.yaml`](/Users/ian/dev/synapse/render.yaml)
+
+Includes:
+
+- `synapse-backend` (web)
+- `synapse-telegram` (worker)
+- `synapse-frontend` (static web)
+
+---
+
+## Local setup and run (keep this section at the bottom)
+
+### 1) Prerequisites
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/)
+- Node.js 20+
+- npm
+- [just](https://github.com/casey/just)
+
+Install `just` on macOS:
 
 ```bash
 brew install just
 ```
 
-If you already have `just`, verify:
+### 2) Configure environment
+
+Create `.env` in the repo root.
+
+Required:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `SURREAL_URL`
+- `SURREAL_USER`
+- `SURREAL_PASS`
+
+Recommended defaults/optional:
+
+- `SURREAL_NS=main` (or `SURREAL_NAMESPACE`)
+- `SURREAL_DB=main` (or `SURREAL_DATABASE`)
+- `JWT_SECRET=<random-long-secret>`
+- `CORS_ORIGINS=http://localhost:5173`
+- `LANGCHAIN_TRACING_V2=true`
+- `LANGCHAIN_PROJECT=synapse-hackathon`
+- `LANGCHAIN_API_KEY=<if using LangSmith>`
+- `TELEGRAM_BOT_TOKEN=<required for Telegram bot>`
+
+### 3) Install dependencies
 
 ```bash
-just --version
-```
-
-These commands are shell-agnostic and work from Bash, Zsh, Fish, etc.
-
-2) Install Python deps
-
-```bash
-# Create .env with required values below before running services
 just sync
 ```
 
-`just sync` now runs:
+This runs backend dependency sync (`uv sync`) and frontend dependency sync when needed.
 
-- `uv sync` for Python dependencies.
-- frontend dependency sync (`npm install`) when `frontend/node_modules` is missing or stale vs `frontend/package-lock.json`.
-
-3) Run core services
+### 4) Run web app (backend + frontend)
 
 ```bash
 just dev
 ```
 
-`just dev` starts:
+- API: `http://localhost:8000`
+- Frontend: `http://localhost:5173`
 
-- FastAPI on `http://localhost:8000`
-- Vite on `http://localhost:5173`
-- auto-installs frontend deps first if missing/stale
-- logs at `.tmp/synapse-api.log` and `.tmp/synapse-frontend.log`
-
-Run Telegram separately (recommended) in another terminal:
-
-```bash
-just telegram
-```
-
-Or run all three in one terminal:
-
-```bash
-just dev-all
-```
-
-You can still run each service independently:
-
-```bash
-just backend
-just frontend
-just telegram
-```
-
-`just frontend` also auto-installs frontend deps first if needed.
-
-If you’re on a machine without `just` installed yet, retry step 1 first, then `just --list` and `just dev`.
-
-Stop all services started by `just dev` or `just dev-all`:
+Stop services:
 
 ```bash
 just stop
 ```
 
-If `just sync` still fails with `Could not read package.json` at `/Users/ian/dev/synapse/package.json`, you were likely using a pre-fix command; pull this patch then rerun `just sync`.
-If Vite reports `Failed to resolve import ...` for a package that exists in `frontend/package.json`, rerun `just dev` (or `just frontend`) and the dependency sync step will install missing modules.
+### 5) Optional: run Telegram bot
 
-## Endpoints
-
-- `GET /health`
-- `GET /api/daily-prompt`
-- `POST /api/reflection`
-- `POST /api/chat`
-- `GET /api/dashboard`
-
-```json
-// POST /api/reflection payload
-{
-  "reflection_text": "I had a hard week with feedback and shutdown.",
-  "daily_prompt": "Optional prompt from backend",
-  "thread_id": "optional client thread id"
-}
-```
-
-## Required env
-
-Add these to `.env` before running:
-
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY` (required for reflection extraction)
-- `SURREAL_URL`
-- `SURREAL_NS` (optional, defaults to `main`; also accepts `SURREAL_NAMESPACE`)
-- `SURREAL_DB` (optional, defaults to `main`; also accepts `SURREAL_DATABASE`)
-- `SURREAL_USER`
-- `SURREAL_PASS`
-
-Optional:
-
-- `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`)
-- `LANGCHAIN_TRACING_V2`, `LANGCHAIN_PROJECT` (if tracing is enabled)
-- `TELEGRAM_BOT_TOKEN` (required for `just telegram` and `just dev-all`)
-- `JWT_SECRET` (random hex string used to sign auth tokens)
-
-## Auth
-
-All data endpoints require a JWT bearer token. Register or log in via the web UI at `http://localhost:5173` to get a token, which is stored in `localStorage` and sent automatically.
-
-Auth endpoints (no token required):
-
-- `POST /api/auth/register` — `{ email, password }` → `{ user_id, email, token }`
-- `POST /api/auth/login` — `{ email, password }` → `{ user_id, email, token }`
-- `POST /api/auth/reset-request` — `{ email }` → `{ reset_token }` (token returned in response, no email sent)
-- `POST /api/auth/reset-confirm` — `{ token, new_password }`
-
-## Telegram bot
-
-Start the bot with `just telegram`. On first contact from an unknown user the bot walks them through account creation inline:
-
-1. Bot asks for email
-2. User replies with their email
-3. Bot asks for password
-4. User replies with password → account created, `telegram_id` linked, reflection processed
-
-Subsequent messages are automatically identified by `telegram_id` — no login needed.
-
-**Linking an existing web account to Telegram**: send `/link` to the bot, then provide your email and password when prompted.
-
-**If you had data before auth was added**: run the migration script to assign all orphaned records to a new account:
+Separate terminal:
 
 ```bash
-uv run python migrate_orphans.py you@example.com yourpassword
+just telegram
 ```
+
+Or run all services in one terminal:
+
+```bash
+just dev-all
+```
+
+### 6) Open the app and authenticate
+
+1. Visit `http://localhost:5173`
+2. Register a new account (or log in)
+3. Submit reflections in `reflect`
+4. Query your graph in `talk`
+
+### 7) Useful individual commands
+
+```bash
+just backend
+just frontend
+```
+
+### 8) Notes
+
+- `seed_data.py` is useful for pipeline experiments, but it does not attach a `user_id`; dashboard/chat views in the authenticated app are user-scoped.
+- If frontend dependencies drift, rerun `just dev` or `just sync`.

@@ -34,6 +34,7 @@ The repo is small but mostly complete as a demo:
 - Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; `Start fresh` opens a compact ask-style input; `Cmd+Enter`/`Ctrl+Enter` submits the reflection composer; extracted entity sections (patterns, emotions, themes, IFS parts, schemas, people, body signals) render only when that reflection includes updates; the primary submit action is a centered `reflect` button.
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
 - SurrealDB startup now validates required env vars with clear `RuntimeError` messages; namespace/database default to `main` when unset and also accept `SURREAL_NAMESPACE` / `SURREAL_DATABASE` aliases.
+- Render Blueprint config exists in `render.yaml` for backend (`synapse-backend`), Telegram worker (`synapse-telegram`), and static frontend (`synapse-frontend`) with `autoDeploy: true` on `main`.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
 - Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
@@ -43,7 +44,6 @@ The repo is small but mostly complete as a demo:
 What is not present:
 
 - No real test suite.
-- No deployment config.
 - No auth, accounts, or multi-user isolation.
 - No production hardening around failures, retries, schema migrations, or privacy.
 
@@ -70,7 +70,9 @@ What is not present:
 ## Repo map
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
+- [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml): dependencies and Python version
+- [render.yaml](/Users/ian/dev/synapse/render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`
 - [main.py](/Users/ian/dev/synapse/main.py): simple OpenAI smoke test, not the product entrypoint
 - [seed_data.py](/Users/ian/dev/synapse/seed_data.py): runs the full reflection pipeline over the sample corpus
 - [langchain_surreal.py](/Users/ian/dev/synapse/langchain_surreal.py): standalone vector-store experiment / proof of concept
@@ -671,6 +673,7 @@ This file was written after reading:
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md)
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml)
+- [render.yaml](/Users/ian/dev/synapse/render.yaml)
 - [main.py](/Users/ian/dev/synapse/main.py)
 - [seed_data.py](/Users/ian/dev/synapse/seed_data.py)
 - [langchain_surreal.py](/Users/ian/dev/synapse/langchain_surreal.py)

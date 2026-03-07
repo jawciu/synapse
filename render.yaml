@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: synapse-backend
+    runtime: python
+    repo: https://github.com/jawciu/synapse
+    rootDir: .
+    branch: main
+    buildCommand: uv sync
+    startCommand: uv run uvicorn api_server:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    healthCheckPath: /health
+
+  - type: worker
+    name: synapse-telegram
+    runtime: python
+    repo: https://github.com/jawciu/synapse
+    rootDir: .
+    branch: main
+    buildCommand: uv sync
+    startCommand: uv run python -m reflect.telegram_bot
+    autoDeploy: true
+
+  - type: web
+    name: synapse-frontend
+    runtime: static
+    repo: https://github.com/jawciu/synapse
+    rootDir: frontend
+    branch: main
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
