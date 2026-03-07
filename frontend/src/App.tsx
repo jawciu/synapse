@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type SVGProps } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type KeyboardEvent, type SVGProps } from "react";
 import Markdown from "react-markdown";
 import AuthPage from "./pages/AuthPage";
 import {
@@ -31,6 +31,7 @@ type PatternEntry = {
 type ThemeEntry = {
   name: string;
   description: string;
+  mentions?: number;
 };
 
 type IFSPart = {
@@ -52,6 +53,7 @@ type EmotionEntry = {
   name: string;
   valence: string;
   intensity: number;
+  mentions?: number;
 };
 
 type PersonEntry = {
@@ -120,10 +122,13 @@ type Summary = {
   total_themes: number;
   total_people: number;
   total_body_signals: number;
+  top_patterns?: PatternEntry[];
+  top_co_occurrences?: Array<{ pattern_a: string; pattern_b: string; times: number }>;
 };
 
 type DashboardPayload = {
   patterns_by_category: Record<string, PatternEntry[]>;
+  themes: ThemeEntry[];
   ifs_parts: IFSPart[];
   schemas: SchemaEntry[];
   emotions: EmotionEntry[];
@@ -339,6 +344,7 @@ function App() {
   const [dailyPrompt, setDailyPrompt] = useState("");
   const [reflectionText, setReflectionText] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [composerVariant, setComposerVariant] = useState<"prompt" | "fresh">("prompt");
   const [reflectionBusy, setReflectionBusy] = useState(false);
   const [reflectionError, setReflectionError] = useState("");
   const [lastReflection, setLastReflection] = useState<ReflectionPayload | null>(null);
@@ -398,6 +404,7 @@ function App() {
     } catch {
       setDashboard({
         patterns_by_category: { cognitive: [], emotional: [], relational: [], behavioral: [] },
+        themes: [],
         ifs_parts: [],
         schemas: [],
         emotions: [],
@@ -482,6 +489,17 @@ function App() {
       return;
     }
 
+    if (selection === "patterns" || selection === "emotions" || selection === "themes" || selection === "bodySignals") {
+      setSourcesBusy(false);
+      setSourcesError("");
+      setReflectionSources([]);
+      setPeopleBusy(false);
+      setPeopleError("");
+      setPeopleOverview(null);
+      await fetchDashboard();
+      return;
+    }
+
     setSourcesBusy(false);
     setSourcesError("");
     setReflectionSources([]);
@@ -523,6 +541,13 @@ function App() {
       setReflectionError((error as Error).message || "Could not process reflection.");
     } finally {
       setReflectionBusy(false);
+    }
+  };
+
+  const onReflectionComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !reflectionBusy && reflectionText.trim()) {
+      event.preventDefault();
+      void submitReflection();
     }
   };
 
@@ -627,6 +652,17 @@ function App() {
 
   const insights = useMemo(() => lastReflection?.insights ?? "", [lastReflection]);
   const followUps = useMemo(() => lastReflection?.follow_up_questions ?? [], [lastReflection]);
+  const hasEntityUpdates = useMemo(
+    () =>
+      extraction.patterns.length > 0 ||
+      extraction.emotions.length > 0 ||
+      extraction.themes.length > 0 ||
+      extraction.ifs_parts.length > 0 ||
+      extraction.schemas.length > 0 ||
+      extraction.people.length > 0 ||
+      extraction.body_signals.length > 0,
+    [extraction],
+  );
 
   const totals = useMemo(() => {
     const summary = dashboard?.summary;
@@ -688,6 +724,193 @@ function App() {
     }
     return peopleOverview.top_trigger_patterns.slice(0, 12);
   }, [peopleOverview]);
+
+  const allPatterns = useMemo(() => {
+    if (!dashboard) {
+      return [] as PatternEntry[];
+    }
+
+    return Object.entries(dashboard.patterns_by_category ?? {})
+      .flatMap(([category, rows]) =>
+        (rows ?? []).map((row) => ({
+          ...row,
+          category: String(row.category || category || "other").toLowerCase(),
+          occurrences: Number(row.occurrences || 0),
+        })),
+      )
+      .sort((a, b) => b.occurrences - a.occurrences || a.name.localeCompare(b.name));
+  }, [dashboard]);
+
+  const patternCategoryMix = useMemo(() => {
+    const buckets: Record<string, { category: string; patterns: number; mentions: number }> = {};
+    for (const pattern of allPatterns) {
+      const category = String(pattern.category || "other").toLowerCase();
+      if (!buckets[category]) {
+        buckets[category] = { category, patterns: 0, mentions: 0 };
+      }
+      buckets[category].patterns += 1;
+      buckets[category].mentions += Number(pattern.occurrences || 0);
+    }
+    return Object.values(buckets).sort((a, b) => b.mentions - a.mentions || a.category.localeCompare(b.category));
+  }, [allPatterns]);
+
+  const topPatternPairs = useMemo(() => {
+    return (dashboard?.summary.top_co_occurrences ?? [])
+      .map((entry) => ({
+        ...entry,
+        label: `${entry.pattern_a} + ${entry.pattern_b}`,
+      }))
+      .slice(0, 10);
+  }, [dashboard]);
+
+  const patternSummary = useMemo(() => {
+    const total_mentions = allPatterns.reduce((sum, pattern) => sum + Number(pattern.occurrences || 0), 0);
+    const top_pattern = allPatterns[0] ?? null;
+    const top_category = patternCategoryMix[0]?.category ?? null;
+    const key_action = top_pattern
+      ? `Pick one small experiment this week to interrupt '${top_pattern.name}' and journal what changed.`
+      : "Add reflections so your strongest patterns can be surfaced.";
+    return {
+      total_patterns: allPatterns.length,
+      total_mentions,
+      top_pattern: top_pattern?.name ?? null,
+      top_pattern_mentions: top_pattern?.occurrences ?? 0,
+      top_category,
+      key_action,
+    };
+  }, [allPatterns, patternCategoryMix]);
+
+  const emotionList = useMemo(() => {
+    if (!dashboard) {
+      return [] as EmotionEntry[];
+    }
+    return [...dashboard.emotions]
+      .map((emotion) => ({
+        ...emotion,
+        mentions: Number(emotion.mentions || 0),
+        intensity: Number(emotion.intensity || 0),
+        valence: String(emotion.valence || "neutral").toLowerCase(),
+      }))
+      .sort(
+        (a, b) =>
+          Number(b.mentions || 0) - Number(a.mentions || 0) ||
+          Number(b.intensity || 0) - Number(a.intensity || 0) ||
+          a.name.localeCompare(b.name),
+      );
+  }, [dashboard]);
+
+  const emotionValenceMix = useMemo(() => {
+    const buckets: Record<string, { valence: string; mentions: number; avg_intensity: number }> = {};
+    for (const emotion of emotionList) {
+      const valence = String(emotion.valence || "neutral").toLowerCase();
+      if (!buckets[valence]) {
+        buckets[valence] = { valence, mentions: 0, avg_intensity: 0 };
+      }
+      buckets[valence].mentions += Number(emotion.mentions || 0);
+      buckets[valence].avg_intensity += Number(emotion.intensity || 0);
+    }
+
+    return Object.values(buckets)
+      .map((bucket) => ({
+        ...bucket,
+        avg_intensity: bucket.mentions > 0 ? Number((bucket.avg_intensity / bucket.mentions).toFixed(3)) : 0,
+      }))
+      .sort((a, b) => b.mentions - a.mentions || a.valence.localeCompare(b.valence));
+  }, [emotionList]);
+
+  const emotionSummary = useMemo(() => {
+    const total_mentions = emotionList.reduce((sum, emotion) => sum + Number(emotion.mentions || 0), 0);
+    const top_emotion = emotionList[0] ?? null;
+    const dominant_valence = emotionValenceMix[0]?.valence ?? null;
+    const key_action = top_emotion
+      ? `When '${top_emotion.name}' shows up next, pause for 90 seconds and name the emotion before reacting.`
+      : "Add reflections so emotional trends can be surfaced.";
+    return {
+      total_emotions: emotionList.length,
+      total_mentions,
+      top_emotion: top_emotion?.name ?? null,
+      top_emotion_mentions: Number(top_emotion?.mentions || 0),
+      dominant_valence,
+      key_action,
+    };
+  }, [emotionList, emotionValenceMix]);
+
+  const themeList = useMemo(() => {
+    if (!dashboard) {
+      return [] as ThemeEntry[];
+    }
+    return [...dashboard.themes]
+      .map((theme) => ({
+        ...theme,
+        name: String(theme.name || "").trim(),
+        description: String(theme.description || "").trim(),
+        mentions: Number(theme.mentions || 0),
+      }))
+      .filter((theme) => theme.name.length > 0)
+      .sort((a, b) => Number(b.mentions || 0) - Number(a.mentions || 0) || a.name.localeCompare(b.name));
+  }, [dashboard]);
+
+  const themeSummary = useMemo(() => {
+    const total_mentions = themeList.reduce((sum, theme) => sum + Number(theme.mentions || 0), 0);
+    const top_theme = themeList[0] ?? null;
+    const key_action = top_theme
+      ? `Use '${top_theme.name}' as your journaling lens for the next 3 entries and note any shift.`
+      : "Add reflections so recurring life themes can be surfaced.";
+    return {
+      total_themes: themeList.length,
+      total_mentions,
+      top_theme: top_theme?.name ?? null,
+      top_theme_mentions: Number(top_theme?.mentions || 0),
+      key_action,
+    };
+  }, [themeList]);
+
+  const bodySignalList = useMemo(() => {
+    if (!dashboard) {
+      return [] as BodySignal[];
+    }
+    return [...dashboard.body_signals]
+      .map((signal) => ({
+        ...signal,
+        name: String(signal.name || "").trim(),
+        location: String(signal.location || "other").trim().toLowerCase(),
+        occurrences: Number(signal.occurrences || 0),
+      }))
+      .filter((signal) => signal.name.length > 0)
+      .sort((a, b) => b.occurrences - a.occurrences || a.name.localeCompare(b.name));
+  }, [dashboard]);
+
+  const bodyLocationMix = useMemo(() => {
+    const buckets: Record<string, { location: string; signals: number; occurrences: number }> = {};
+    for (const signal of bodySignalList) {
+      const location = signal.location || "other";
+      if (!buckets[location]) {
+        buckets[location] = { location, signals: 0, occurrences: 0 };
+      }
+      buckets[location].signals += 1;
+      buckets[location].occurrences += Number(signal.occurrences || 0);
+    }
+    return Object.values(buckets).sort((a, b) => b.occurrences - a.occurrences || a.location.localeCompare(b.location));
+  }, [bodySignalList]);
+
+  const bodySummary = useMemo(() => {
+    const total_occurrences = bodySignalList.reduce((sum, signal) => sum + Number(signal.occurrences || 0), 0);
+    const top_signal = bodySignalList[0] ?? null;
+    const top_location = bodyLocationMix[0]?.location ?? null;
+    const key_action = top_signal
+      ? `The next time '${top_signal.name}' appears, take one slow breath and label what emotion is present.`
+      : "Add reflections with body sensations so somatic patterns can be surfaced.";
+    return {
+      total_signals: bodySignalList.length,
+      total_occurrences,
+      top_signal: top_signal?.name ?? null,
+      top_signal_occurrences: top_signal?.occurrences ?? 0,
+      top_location,
+      key_action,
+    };
+  }, [bodySignalList, bodyLocationMix]);
+
+  const hasChatHistory = chatMessages.length > 0;
 
   if (!authToken) {
     return <AuthPage onAuth={handleAuth} />;
@@ -926,10 +1149,321 @@ function App() {
               </>
             ) : null}
 
-            {selectedTotal !== "reflections" && selectedTotal !== "people" ? (
-              <p className="muted">
-                Source drill-down for <strong>{TOTAL_LABELS[selectedTotal]}</strong> is not implemented yet.
-              </p>
+            {selectedTotal === "patterns" ? (
+              <section className="people-drilldown">
+                <article className="people-key-action">
+                  <p className="people-key-action-label">Key Action</p>
+                  <p className="people-key-action-text">{patternSummary.key_action}</p>
+                  <div className="people-kpi-row">
+                    <p>
+                      <strong>{patternSummary.total_patterns}</strong> patterns
+                    </p>
+                    <p>
+                      <strong>{patternSummary.total_mentions}</strong> mentions
+                    </p>
+                    <p>
+                      Top category: <strong>{patternSummary.top_category ? titleCase(patternSummary.top_category) : "n/a"}</strong>
+                    </p>
+                    <p>
+                      Top pattern:{" "}
+                      <strong>
+                        {patternSummary.top_pattern
+                          ? `${patternSummary.top_pattern} (${patternSummary.top_pattern_mentions})`
+                          : "n/a"}
+                      </strong>
+                    </p>
+                  </div>
+                </article>
+
+                <div className="people-chart-grid">
+                  <article className="panel compact">
+                    <h3>Category Mix</h3>
+                    {patternCategoryMix.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={patternCategoryMix} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                          <XAxis type="number" stroke={THEME_COLORS.muted} />
+                          <YAxis
+                            dataKey="category"
+                            type="category"
+                            width={130}
+                            tickFormatter={(value) => titleCase(String(value))}
+                            stroke={THEME_COLORS.muted}
+                          />
+                          <Tooltip {...CHART_TOOLTIP_STYLE} />
+                          <Bar dataKey="mentions" radius={6} fill="#78a8ff" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No pattern data yet.</p>
+                    )}
+                  </article>
+
+                  <article className="panel compact">
+                    <h3>Top Co-occurrences</h3>
+                    {topPatternPairs.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={topPatternPairs} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                          <XAxis type="number" stroke={THEME_COLORS.muted} />
+                          <YAxis dataKey="label" type="category" width={170} stroke={THEME_COLORS.muted} />
+                          <Tooltip {...CHART_TOOLTIP_STYLE} />
+                          <Bar dataKey="times" radius={6} fill="#9f8bff" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No co-occurrence data yet.</p>
+                    )}
+                  </article>
+                </div>
+
+                <section className="people-list">
+                  {allPatterns.length > 0 ? (
+                    allPatterns.map((pattern) => (
+                      <article key={`${pattern.category}-${pattern.name}`} className="people-item">
+                        <div className="people-item-head">
+                          <h3>{pattern.name}</h3>
+                          <p className="meta">
+                            {titleCase(pattern.category)} • {pattern.occurrences} mentions
+                          </p>
+                        </div>
+                        {pattern.description ? <p>{pattern.description}</p> : <p className="muted">No description yet.</p>}
+                      </article>
+                    ))
+                  ) : (
+                    <p className="muted">No patterns found yet.</p>
+                  )}
+                </section>
+              </section>
+            ) : null}
+
+            {selectedTotal === "emotions" ? (
+              <section className="people-drilldown">
+                <article className="people-key-action">
+                  <p className="people-key-action-label">Key Action</p>
+                  <p className="people-key-action-text">{emotionSummary.key_action}</p>
+                  <div className="people-kpi-row">
+                    <p>
+                      <strong>{emotionSummary.total_emotions}</strong> emotions
+                    </p>
+                    <p>
+                      <strong>{emotionSummary.total_mentions}</strong> mentions
+                    </p>
+                    <p>
+                      Dominant valence: <strong>{emotionSummary.dominant_valence ? titleCase(emotionSummary.dominant_valence) : "n/a"}</strong>
+                    </p>
+                    <p>
+                      Top emotion:{" "}
+                      <strong>
+                        {emotionSummary.top_emotion
+                          ? `${emotionSummary.top_emotion} (${emotionSummary.top_emotion_mentions})`
+                          : "n/a"}
+                      </strong>
+                    </p>
+                  </div>
+                </article>
+
+                <div className="people-chart-grid">
+                  <article className="panel compact">
+                    <h3>Valence Mix</h3>
+                    {emotionValenceMix.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={emotionValenceMix} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                          <XAxis type="number" stroke={THEME_COLORS.muted} />
+                          <YAxis
+                            dataKey="valence"
+                            type="category"
+                            width={130}
+                            tickFormatter={(value) => titleCase(String(value))}
+                            stroke={THEME_COLORS.muted}
+                          />
+                          <Tooltip {...CHART_TOOLTIP_STYLE} />
+                          <Bar dataKey="mentions" radius={6} fill="#ff6f7d" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No valence data yet.</p>
+                    )}
+                  </article>
+
+                  <article className="panel compact">
+                    <h3>Top Emotions</h3>
+                    {emotionList.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={emotionList.slice(0, 12)} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                          <XAxis type="number" stroke={THEME_COLORS.muted} />
+                          <YAxis dataKey="name" type="category" width={150} stroke={THEME_COLORS.muted} />
+                          <Tooltip {...CHART_TOOLTIP_STYLE} />
+                          <Bar dataKey="mentions" radius={6} fill="#f2a6a6" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No emotion data yet.</p>
+                    )}
+                  </article>
+                </div>
+
+                <section className="people-list">
+                  {emotionList.length > 0 ? (
+                    emotionList.map((emotion) => (
+                      <article key={emotion.name} className="people-item">
+                        <div className="people-item-head">
+                          <h3>{emotion.name}</h3>
+                          <p className="meta">
+                            {titleCase(emotion.valence)} • {Number(emotion.mentions || 0)} mentions
+                          </p>
+                        </div>
+                        <p className="meta">intensity {clampPercent(Number(emotion.intensity || 0))}%</p>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="muted">No emotions found yet.</p>
+                  )}
+                </section>
+              </section>
+            ) : null}
+
+            {selectedTotal === "themes" ? (
+              <section className="people-drilldown">
+                <article className="people-key-action">
+                  <p className="people-key-action-label">Key Action</p>
+                  <p className="people-key-action-text">{themeSummary.key_action}</p>
+                  <div className="people-kpi-row">
+                    <p>
+                      <strong>{themeSummary.total_themes}</strong> themes
+                    </p>
+                    <p>
+                      <strong>{themeSummary.total_mentions}</strong> mentions
+                    </p>
+                    <p>
+                      Top theme:{" "}
+                      <strong>
+                        {themeSummary.top_theme ? `${themeSummary.top_theme} (${themeSummary.top_theme_mentions})` : "n/a"}
+                      </strong>
+                    </p>
+                  </div>
+                </article>
+
+                <article className="panel compact">
+                  <h3>Theme Mentions</h3>
+                  {themeList.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={themeList.slice(0, 12)} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                        <XAxis type="number" stroke={THEME_COLORS.muted} />
+                        <YAxis dataKey="name" type="category" width={170} stroke={THEME_COLORS.muted} />
+                        <Tooltip {...CHART_TOOLTIP_STYLE} />
+                        <Bar dataKey="mentions" radius={6} fill="#9f8bff" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="muted">No themes found yet.</p>
+                  )}
+                </article>
+
+                <section className="people-list">
+                  {themeList.length > 0 ? (
+                    themeList.map((theme) => (
+                      <article key={theme.name} className="people-item">
+                        <div className="people-item-head">
+                          <h3>{theme.name}</h3>
+                          <p className="meta">{Number(theme.mentions || 0)} mentions</p>
+                        </div>
+                        {theme.description ? <p>{theme.description}</p> : <p className="muted">No description yet.</p>}
+                      </article>
+                    ))
+                  ) : (
+                    <p className="muted">No themes found yet.</p>
+                  )}
+                </section>
+              </section>
+            ) : null}
+
+            {selectedTotal === "bodySignals" ? (
+              <section className="people-drilldown">
+                <article className="people-key-action">
+                  <p className="people-key-action-label">Key Action</p>
+                  <p className="people-key-action-text">{bodySummary.key_action}</p>
+                  <div className="people-kpi-row">
+                    <p>
+                      <strong>{bodySummary.total_signals}</strong> body signals
+                    </p>
+                    <p>
+                      <strong>{bodySummary.total_occurrences}</strong> occurrences
+                    </p>
+                    <p>
+                      Top location: <strong>{bodySummary.top_location ? titleCase(bodySummary.top_location) : "n/a"}</strong>
+                    </p>
+                    <p>
+                      Top signal:{" "}
+                      <strong>
+                        {bodySummary.top_signal ? `${bodySummary.top_signal} (${bodySummary.top_signal_occurrences})` : "n/a"}
+                      </strong>
+                    </p>
+                  </div>
+                </article>
+
+                <div className="people-chart-grid">
+                  <article className="panel compact">
+                    <h3>Location Mix</h3>
+                    {bodyLocationMix.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={bodyLocationMix} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                          <XAxis type="number" stroke={THEME_COLORS.muted} />
+                          <YAxis
+                            dataKey="location"
+                            type="category"
+                            width={130}
+                            tickFormatter={(value) => titleCase(String(value))}
+                            stroke={THEME_COLORS.muted}
+                          />
+                          <Tooltip {...CHART_TOOLTIP_STYLE} />
+                          <Bar dataKey="occurrences" radius={6} fill="#35bda7" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No body-signal data yet.</p>
+                    )}
+                  </article>
+
+                  <article className="panel compact">
+                    <h3>Top Body Signals</h3>
+                    {bodySignalList.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={bodySignalList.slice(0, 12)} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                          <XAxis type="number" stroke={THEME_COLORS.muted} />
+                          <YAxis dataKey="name" type="category" width={160} stroke={THEME_COLORS.muted} />
+                          <Tooltip {...CHART_TOOLTIP_STYLE} />
+                          <Bar dataKey="occurrences" radius={6} fill="#6ad1c0" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="muted">No body signals found yet.</p>
+                    )}
+                  </article>
+                </div>
+
+                <section className="people-list">
+                  {bodySignalList.length > 0 ? (
+                    bodySignalList.map((signal) => (
+                      <article key={signal.name} className="people-item">
+                        <div className="people-item-head">
+                          <h3>{signal.name}</h3>
+                          <p className="meta">
+                            {titleCase(signal.location)} • {signal.occurrences} occurrences
+                          </p>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="muted">No body signals found yet.</p>
+                  )}
+                </section>
+              </section>
             ) : null}
           </section>
         ) : null}
@@ -947,7 +1481,7 @@ function App() {
             className={activeTab === "ask" ? "active" : ""}
             onClick={() => setActiveTab("ask")}
           >
-            ask
+            talk
           </button>
         </nav>
 
@@ -976,6 +1510,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => {
+                  setComposerVariant("prompt");
                   setComposerOpen(true);
                   setReflectionError("");
                   setReflectionText(buildPromptDraft(dailyPrompt));
@@ -987,6 +1522,7 @@ function App() {
                 type="button"
                 className="start-fresh-button"
                 onClick={() => {
+                  setComposerVariant("fresh");
                   setComposerOpen(true);
                   setReflectionError("");
                   setReflectionText("");
@@ -997,17 +1533,28 @@ function App() {
             </div>
             {composerOpen ? (
               <>
-                <textarea
-                  className="reflect-textarea"
-                  rows={8}
-                  value={reflectionText}
-                  placeholder='Try writing in your own words: "What happened? What did I feel in my body? Where did I get reactive or calm?"'
-                  onChange={(event) => setReflectionText(event.target.value)}
-                />
+                {composerVariant === "fresh" ? (
+                  <input
+                    className="reflect-fresh-input"
+                    value={reflectionText}
+                    placeholder="ask about yourself"
+                    onChange={(event) => setReflectionText(event.target.value)}
+                    onKeyDown={onReflectionComposerKeyDown}
+                  />
+                ) : (
+                  <textarea
+                    className="reflect-textarea"
+                    rows={8}
+                    value={reflectionText}
+                    placeholder='Try writing in your own words: "What happened? What did I feel in my body? Where did I get reactive or calm?"'
+                    onChange={(event) => setReflectionText(event.target.value)}
+                    onKeyDown={onReflectionComposerKeyDown}
+                  />
+                )}
                 <div className="toolbar reflect-submit-wrap">
                   <button
                     type="button"
-                    className="reflect-submit-button"
+                    className={`reflect-submit-button ${composerVariant === "fresh" ? "reflect-submit-button-compact" : ""}`.trim()}
                     onClick={submitReflection}
                     disabled={reflectionBusy || !reflectionText.trim()}
                   >
@@ -1020,109 +1567,99 @@ function App() {
 
             {lastReflection ? (
               <>
-                <div className="result-grid">
-                  <section className="panel">
-                    <h3>Patterns</h3>
+                {hasEntityUpdates ? (
+                  <div className="result-grid">
                     {extraction.patterns.length > 0 ? (
-                      extraction.patterns.map((pattern) => (
-                        <p key={pattern.name}>
-                          <strong>{pattern.name}</strong> <span className="meta">({pattern.category})</span> -{' '}
-                          {clampPercent(pattern.strength)}%
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No patterns detected yet.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>Patterns</h3>
+                        {extraction.patterns.map((pattern) => (
+                          <p key={pattern.name}>
+                            <strong>{pattern.name}</strong> <span className="meta">({pattern.category})</span> -{' '}
+                            {clampPercent(pattern.strength)}%
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
 
-                  <section className="panel">
-                    <h3>Emotions</h3>
                     {extraction.emotions.length > 0 ? (
-                      extraction.emotions.map((emotion) => (
-                        <p key={emotion.name}>
-                          <strong>{emotion.name}</strong> <span className="meta">({emotion.valence})</span> -{' '}
-                          {clampPercent(emotion.intensity)}%
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No emotions detected.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>Emotions</h3>
+                        {extraction.emotions.map((emotion) => (
+                          <p key={emotion.name}>
+                            <strong>{emotion.name}</strong> <span className="meta">({emotion.valence})</span> -{' '}
+                            {clampPercent(emotion.intensity)}%
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
 
-                  <section className="panel">
-                    <h3>Themes</h3>
                     {extraction.themes.length > 0 ? (
-                      extraction.themes.map((theme) => (
-                        <p key={theme.name}>
-                          <strong>{theme.name}</strong>
-                          <span className="muted"> - {theme.description}</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No themes surfaced.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>Themes</h3>
+                        {extraction.themes.map((theme) => (
+                          <p key={theme.name}>
+                            <strong>{theme.name}</strong>
+                            <span className="muted"> - {theme.description}</span>
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
 
-                  <section className="panel">
-                    <h3>IFS Parts</h3>
                     {extraction.ifs_parts.length > 0 ? (
-                      extraction.ifs_parts.map((part) => (
-                        <p key={part.name}>
-                          <strong>{part.name}</strong> <span className="meta">({roleName(part.role)})</span>
-                          <span className="muted"> - {part.description}</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No IFS parts detected.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>IFS Parts</h3>
+                        {extraction.ifs_parts.map((part) => (
+                          <p key={part.name}>
+                            <strong>{part.name}</strong> <span className="meta">({roleName(part.role)})</span>
+                            <span className="muted"> - {part.description}</span>
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
 
-                  <section className="panel">
-                    <h3>Schemas</h3>
                     {extraction.schemas.length > 0 ? (
-                      extraction.schemas.map((schema) => (
-                        <p key={schema.name}>
-                          <strong>{schema.name}</strong>
-                          <span className="meta">
-                            ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
-                          </span>
-                          <span className="muted"> - {schema.description}</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No schema patterns detected.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>Schemas</h3>
+                        {extraction.schemas.map((schema) => (
+                          <p key={schema.name}>
+                            <strong>{schema.name}</strong>
+                            <span className="meta">
+                              ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
+                            </span>
+                            <span className="muted"> - {schema.description}</span>
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
 
-                  <section className="panel">
-                    <h3>People</h3>
                     {extraction.people.length > 0 ? (
-                      extraction.people.map((person) => (
-                        <p key={person.name}>
-                          <strong>{person.name}</strong>
-                          <span className="meta"> ({person.relationship})</span>
-                          {person.description ? <span className="muted"> - {person.description}</span> : null}
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No people detected.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>People</h3>
+                        {extraction.people.map((person) => (
+                          <p key={person.name}>
+                            <strong>{person.name}</strong>
+                            <span className="meta"> ({person.relationship})</span>
+                            {person.description ? <span className="muted"> - {person.description}</span> : null}
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
 
-                  <section className="panel">
-                    <h3>Body Signals</h3>
                     {extraction.body_signals.length > 0 ? (
-                      extraction.body_signals.map((signal) => (
-                        <p key={signal.name}>
-                          <strong>{signal.name}</strong>
-                          <span className="meta"> ({signal.location})</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="muted">No body signals detected.</p>
-                    )}
-                  </section>
+                      <section className="panel">
+                        <h3>Body Signals</h3>
+                        {extraction.body_signals.map((signal) => (
+                          <p key={signal.name}>
+                            <strong>{signal.name}</strong>
+                            <span className="meta"> ({signal.location})</span>
+                          </p>
+                        ))}
+                      </section>
+                    ) : null}
+                  </div>
+                ) : null}
 
+                <div className="result-grid">
                   <section className="panel wide-panel">
                     <h3>Insights</h3>
                     <p>{insights || "--"}</p>
@@ -1147,23 +1684,27 @@ function App() {
         ) : null}
 
         {activeTab === "ask" ? (
-          <section className="card chat-card">
-            <h2>Ask Your Graph</h2>
-            <div className="chat-log">
-              {chatMessages.map((message, index) => (
-                <div key={`${message.role}-${index}`} className={`chat-line ${message.role}`}>
-                  <strong>{message.role === "user" ? "You" : "synapse"}:</strong>
-                  {message.role === "user" ? (
-                    <span> {message.content}</span>
-                  ) : (
-                    <Markdown>{message.content}</Markdown>
-                  )}
-                </div>
-              ))}
-              {chatBusy ? <p className="muted">Assistant is thinking...</p> : null}
-            </div>
-            <div className="chat-inputs">
+          <section className={`card chat-card ${hasChatHistory ? "chat-card-active" : "chat-card-empty"}`}>
+            <h2>Talk to Your Graph</h2>
+            {!hasChatHistory ? <p className="talk-empty-hint">Start with one question about yourself.</p> : null}
+            {hasChatHistory ? (
+              <div className="chat-log">
+                {chatMessages.map((message, index) => (
+                  <div key={`${message.role}-${index}`} className={`chat-line ${message.role}`}>
+                    <strong>{message.role === "user" ? "You" : "synapse"}:</strong>
+                    {message.role === "user" ? (
+                      <span> {message.content}</span>
+                    ) : (
+                      <Markdown>{message.content}</Markdown>
+                    )}
+                  </div>
+                ))}
+                {chatBusy ? <p className="muted">Assistant is thinking...</p> : null}
+              </div>
+            ) : null}
+            <div className={`chat-inputs ${hasChatHistory ? "" : "chat-inputs-center"}`.trim()}>
               <input
+                className="chat-input-field"
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
                 onKeyDown={(event) => {
@@ -1171,7 +1712,7 @@ function App() {
                     sendChat();
                   }
                 }}
-                placeholder="Ask about patterns, people, or emotions..."
+                placeholder="ask about yourself"
               />
               <button type="button" onClick={sendChat} disabled={chatBusy || !chatInput.trim()}>
                 Send

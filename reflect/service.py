@@ -155,6 +155,7 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
     if _conn is None:
         return {
             "patterns_by_category": {"cognitive": [], "emotional": [], "relational": [], "behavioral": []},
+            "themes": [],
             "ifs_parts": [],
             "schemas": [],
             "emotions": [],
@@ -184,8 +185,38 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
     schema_rows = _conn.query("SELECT name, domain, coping_style, description, occurrences FROM schema_pattern WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     schema_rows = [] if (not schema_rows or isinstance(schema_rows, str)) else schema_rows
 
-    emotion_rows = _conn.query("SELECT name, valence, intensity FROM emotion WHERE user_id = $user_id ORDER BY intensity DESC", uid)
-    emotion_rows = [] if (not emotion_rows or isinstance(emotion_rows, str)) else emotion_rows
+    emotion_nodes = _conn.query("SELECT id, name, valence, intensity FROM emotion WHERE user_id = $user_id ORDER BY name ASC", uid)
+    emotion_nodes = [] if (not emotion_nodes or isinstance(emotion_nodes, str)) else emotion_nodes
+    emotion_rows: list[dict[str, Any]] = []
+    for row in emotion_nodes:
+        if not isinstance(row, dict):
+            continue
+        emotion_id = row.get("id")
+        mentions_rows = []
+        if emotion_id:
+            mentions_rows = _conn.query(
+                "SELECT count() AS total FROM expresses WHERE out = $emotion_id GROUP ALL",
+                {"emotion_id": emotion_id},
+            )
+        mentions = 0
+        if mentions_rows and not isinstance(mentions_rows, str):
+            mentions = int(mentions_rows[0].get("total") or 0)
+
+        emotion_rows.append(
+            {
+                "name": row.get("name"),
+                "valence": row.get("valence"),
+                "intensity": float(row.get("intensity") or 0),
+                "mentions": mentions,
+            }
+        )
+    emotion_rows.sort(
+        key=lambda item: (
+            -int(item.get("mentions") or 0),
+            -float(item.get("intensity") or 0),
+            str(item.get("name") or "").lower(),
+        )
+    )
 
     people_rows = _conn.query("SELECT name, relationship, description, occurrences FROM person WHERE user_id = $user_id ORDER BY occurrences DESC", uid)
     people_rows = [] if (not people_rows or isinstance(people_rows, str)) else people_rows
@@ -200,7 +231,35 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
     reflections_total = _conn.query("SELECT count() AS total FROM reflection WHERE user_id = $user_id GROUP ALL", uid)
     total_reflections = reflections_total[0]["total"] if reflections_total and not isinstance(reflections_total, str) else 0
 
-    themes_rows = _conn.query("SELECT name FROM theme WHERE user_id = $user_id", uid) or []
+    theme_nodes = _conn.query("SELECT id, name, description FROM theme WHERE user_id = $user_id ORDER BY name ASC", uid)
+    theme_nodes = [] if (not theme_nodes or isinstance(theme_nodes, str)) else theme_nodes
+    themes_rows: list[dict[str, Any]] = []
+    for row in theme_nodes:
+        if not isinstance(row, dict):
+            continue
+        theme_id = row.get("id")
+        mentions_rows = []
+        if theme_id:
+            mentions_rows = _conn.query(
+                "SELECT count() AS total FROM about WHERE out = $theme_id GROUP ALL",
+                {"theme_id": theme_id},
+            )
+        mentions = 0
+        if mentions_rows and not isinstance(mentions_rows, str):
+            mentions = int(mentions_rows[0].get("total") or 0)
+        themes_rows.append(
+            {
+                "name": row.get("name"),
+                "description": row.get("description"),
+                "mentions": mentions,
+            }
+        )
+    themes_rows.sort(
+        key=lambda item: (
+            -int(item.get("mentions") or 0),
+            str(item.get("name") or "").lower(),
+        )
+    )
     total_patterns = len(pattern_rows)
     total_emotions = len(emotion_rows)
     total_themes = len(themes_rows)
@@ -215,6 +274,7 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
 
     return {
         "patterns_by_category": by_category,
+        "themes": themes_rows,
         "ifs_parts": ifs_rows,
         "schemas": schema_rows,
         "emotions": emotion_rows,

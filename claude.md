@@ -31,11 +31,13 @@ The repo is small but mostly complete as a demo:
 - OpenAI used for embeddings, chat, and synthesis LLM steps; Anthropic is used for extraction.
 - LangSmith decorators are present on the main pipeline and graph functions.
 - Seed data exists and is intentionally written to create cross-entry childhood and relationship patterns.
-- Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; the primary submit action is a wide centered `reflect` button.
+- Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; `Start fresh` opens a compact ask-style input; `Cmd+Enter`/`Ctrl+Enter` submits the reflection composer; extracted entity sections (patterns, emotions, themes, IFS parts, schemas, people, body signals) render only when that reflection includes updates; the primary submit action is a centered `reflect` button.
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
-- The dedicated `patterns` tab has been removed from the primary tab bar; primary tabs are now `reflect` and `ask` while totals in the top menubar continue to expose source/drill-down panels.
+- Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
+- The dedicated `patterns` tab has been removed from the primary tab bar; primary tabs are now `reflect` and `talk` while totals in the top menubar continue to expose source/drill-down panels.
+- The `talk` tab now uses an empty-first UX: a centered question composer appears immediately, and the larger transcript panel is only rendered after the first message is sent.
 
 What is not present:
 
@@ -397,7 +399,7 @@ Current visual direction targets the TS UI:
 - lower-case `synapse` branding
 - bold gradient-backed interface with glass panels
 - modern chart primitives from Recharts
-- tabs labeled `reflect` and `ask`
+- tabs labeled `reflect` and `talk`
 - a stronger color system tuned for interactive visuals
 
 ### Sidebar
@@ -426,7 +428,7 @@ Rendered sections:
 - insights
 - follow-up questions
 
-### Tab 2: Ask
+### Tab 2: Talk
 
 Purpose:
 
@@ -437,6 +439,7 @@ Behavior:
 - chat history is now held in frontend state, with backend thread ids for persistence
 - agent memory also uses `MemorySaver`
 - each frontend session should reuse the same `thread_id` for continuity
+- the transcript panel stays hidden until the user sends the first question so the composer remains front-and-center
 
 ## Prompts and product tone
 

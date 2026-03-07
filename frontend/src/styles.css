@@ -529,6 +529,13 @@ textarea {
   margin-top: 4px;
 }
 
+.reflect-fresh-input {
+  display: block;
+  margin: 4px auto 0;
+  width: min(100%, 460px);
+  min-height: 42px;
+}
+
 .reflect-submit-button {
   width: min(100%, 640px);
   min-height: 52px;
@@ -542,12 +549,22 @@ textarea {
   border-color: #c9b8cc;
 }
 
+.reflect-submit-button-compact {
+  width: min(100%, 460px);
+  min-height: 46px;
+  font-size: 20px;
+}
+
 .reflect-submit-button:hover {
   transform: translateY(-1px) scale(1.01);
 }
 
 .toolbar {
   margin: 10px 0 0;
+}
+
+.toolbar.reflect-actions {
+  margin: 8px 0 42px;
 }
 
 .row-actions,
@@ -559,11 +576,28 @@ textarea {
 
 .chat-inputs {
   margin-top: 12px;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .chat-inputs input {
   flex: 1;
   min-height: 42px;
+}
+
+.chat-inputs .chat-input-field {
+  flex: 0 1 320px;
+  width: min(100%, 320px);
+}
+
+.chat-inputs-center {
+  justify-content: center;
+}
+
+.chat-inputs-center .chat-input-field {
+  flex-basis: 460px;
+  width: min(100%, 460px);
 }
 
 .result-grid,
@@ -633,7 +667,25 @@ textarea {
 }
 
 .chat-card {
+  min-height: 240px;
+}
+
+.chat-card-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.chat-card-active {
   min-height: 540px;
+}
+
+.talk-empty-hint {
+  margin: 2px 0 8px;
+  color: var(--ink-soft);
 }
 
 .chat-log {
