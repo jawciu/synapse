@@ -1302,7 +1302,7 @@ function App() {
                       <article className="panel compact">
                         <h3>Relationship Mix</h3>
                         {relationshipMix.length > 0 ? (
-                          <ResponsiveContainer width="100%" height={220}>
+                          <ResponsiveContainer width="100%" height={Math.max(220, relationshipMix.length * 36)}>
                             <BarChart data={relationshipMix} layout="vertical">
                               <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                               <XAxis type="number" stroke={THEME_COLORS.muted} />
@@ -1310,6 +1310,8 @@ function App() {
                                 dataKey="relationship"
                                 type="category"
                                 width={120}
+                                interval={0}
+                                tick={{ fontSize: 11 }}
                                 tickFormatter={(value) => titleCase(String(value))}
                                 stroke={THEME_COLORS.muted}
                               />
@@ -1325,11 +1327,11 @@ function App() {
                       <article className="panel compact">
                         <h3>Top Triggered Patterns</h3>
                         {topTriggerPatterns.length > 0 ? (
-                          <ResponsiveContainer width="100%" height={220}>
+                          <ResponsiveContainer width="100%" height={Math.max(220, topTriggerPatterns.length * 36)}>
                             <BarChart data={topTriggerPatterns} layout="vertical">
                               <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                               <XAxis type="number" stroke={THEME_COLORS.muted} />
-                              <YAxis dataKey="name" type="category" width={150} stroke={THEME_COLORS.muted} />
+                              <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 11 }} interval={0} stroke={THEME_COLORS.muted} />
                               <Tooltip {...CHART_TOOLTIP_STYLE} />
                               <Bar dataKey="links" radius={6} fill="#8ab4f8" />
                             </BarChart>
@@ -1400,7 +1402,7 @@ function App() {
                   <article className="panel compact">
                     <h3>Category Mix</h3>
                     {patternCategoryMix.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={220}>
+                      <ResponsiveContainer width="100%" height={Math.max(220, patternCategoryMix.length * 36)}>
                         <BarChart data={patternCategoryMix} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                           <XAxis type="number" stroke={THEME_COLORS.muted} />
@@ -1408,6 +1410,8 @@ function App() {
                             dataKey="category"
                             type="category"
                             width={130}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
                             tickFormatter={(value) => titleCase(String(value))}
                             stroke={THEME_COLORS.muted}
                           />
@@ -1423,11 +1427,11 @@ function App() {
                   <article className="panel compact">
                     <h3>Top Co-occurrences</h3>
                     {topPatternPairs.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={220}>
+                      <ResponsiveContainer width="100%" height={Math.max(220, topPatternPairs.length * 44)}>
                         <BarChart data={topPatternPairs} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                           <XAxis type="number" stroke={THEME_COLORS.muted} />
-                          <YAxis dataKey="label" type="category" width={170} stroke={THEME_COLORS.muted} />
+                          <YAxis dataKey="label" type="category" width={190} tick={{ fontSize: 10 }} interval={0} stroke={THEME_COLORS.muted} />
                           <Tooltip {...CHART_TOOLTIP_STYLE} />
                           <Bar dataKey="times" radius={6} fill="#9f8bff" />
                         </BarChart>
@@ -1488,7 +1492,7 @@ function App() {
                   <article className="panel compact">
                     <h3>Valence Mix</h3>
                     {emotionValenceMix.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={220}>
+                      <ResponsiveContainer width="100%" height={Math.max(220, emotionValenceMix.length * 36)}>
                         <BarChart data={emotionValenceMix} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                           <XAxis type="number" stroke={THEME_COLORS.muted} />
@@ -1496,6 +1500,8 @@ function App() {
                             dataKey="valence"
                             type="category"
                             width={130}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
                             tickFormatter={(value) => titleCase(String(value))}
                             stroke={THEME_COLORS.muted}
                           />
@@ -1511,11 +1517,11 @@ function App() {
                   <article className="panel compact">
                     <h3>Top Emotions</h3>
                     {emotionList.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={220}>
+                      <ResponsiveContainer width="100%" height={Math.max(220, Math.min(emotionList.length, 12) * 36)}>
                         <BarChart data={emotionList.slice(0, 12)} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                           <XAxis type="number" stroke={THEME_COLORS.muted} />
-                          <YAxis dataKey="name" type="category" width={150} stroke={THEME_COLORS.muted} />
+                          <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 11 }} interval={0} stroke={THEME_COLORS.muted} />
                           <Tooltip {...CHART_TOOLTIP_STYLE} />
                           <Bar dataKey="mentions" radius={6} fill="#f2a6a6" />
                         </BarChart>
@@ -1570,11 +1576,11 @@ function App() {
                 <article className="panel compact">
                   <h3>Theme Mentions</h3>
                   {themeList.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={240}>
+                    <ResponsiveContainer width="100%" height={Math.max(240, Math.min(themeList.length, 12) * 36)}>
                       <BarChart data={themeList.slice(0, 12)} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                         <XAxis type="number" stroke={THEME_COLORS.muted} />
-                        <YAxis dataKey="name" type="category" width={170} stroke={THEME_COLORS.muted} />
+                        <YAxis dataKey="name" type="category" width={170} tick={{ fontSize: 11 }} interval={0} stroke={THEME_COLORS.muted} />
                         <Tooltip {...CHART_TOOLTIP_STYLE} />
                         <Bar dataKey="mentions" radius={6} fill="#9f8bff" />
                       </BarChart>
@@ -1630,7 +1636,7 @@ function App() {
                   <article className="panel compact">
                     <h3>Location Mix</h3>
                     {bodyLocationMix.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={220}>
+                      <ResponsiveContainer width="100%" height={Math.max(220, bodyLocationMix.length * 36)}>
                         <BarChart data={bodyLocationMix} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                           <XAxis type="number" stroke={THEME_COLORS.muted} />
@@ -1638,6 +1644,8 @@ function App() {
                             dataKey="location"
                             type="category"
                             width={130}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
                             tickFormatter={(value) => titleCase(String(value))}
                             stroke={THEME_COLORS.muted}
                           />
@@ -1653,11 +1661,11 @@ function App() {
                   <article className="panel compact">
                     <h3>Top Body Signals</h3>
                     {bodySignalList.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={220}>
+                      <ResponsiveContainer width="100%" height={Math.max(220, Math.min(bodySignalList.length, 12) * 36)}>
                         <BarChart data={bodySignalList.slice(0, 12)} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
                           <XAxis type="number" stroke={THEME_COLORS.muted} />
-                          <YAxis dataKey="name" type="category" width={160} stroke={THEME_COLORS.muted} />
+                          <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 11 }} interval={0} stroke={THEME_COLORS.muted} />
                           <Tooltip {...CHART_TOOLTIP_STYLE} />
                           <Bar dataKey="occurrences" radius={6} fill="#6ad1c0" />
                         </BarChart>

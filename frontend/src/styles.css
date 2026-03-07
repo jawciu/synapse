@@ -38,6 +38,7 @@ body {
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.7) 0 1px, transparent 1px 22px),
     radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.7) 0, transparent 38%),
     linear-gradient(150deg, #fbf8f3 0%, #f2ebe2 55%, #f8f4ec 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family:
     "Avenir Next",

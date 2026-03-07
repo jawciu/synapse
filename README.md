@@ -5,6 +5,16 @@
 Synapse is a memory-first reflection agent built for the London LangChain x SurrealDB Hackathon.
 It turns unstructured reflections into a persistent knowledge graph, then answers questions from that evolving graph context.
 
+<p align="center">
+  <img src="docs/screenshots/reflect-journal.png" alt="Journal view" width="48%" />
+  <img src="docs/screenshots/reflect-ask.png" alt="Ask a question" width="48%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/insights-dashboard.png" alt="Insights dashboard" width="32%" />
+  <img src="docs/screenshots/insights-emotions.png" alt="Emotion deep-dive" width="32%" />
+  <img src="docs/screenshots/insights-body-signals.png" alt="Body signals" width="32%" />
+</p>
+
 Public demo: [synapse-frontend-vdmo.onrender.com](https://synapse-frontend-vdmo.onrender.com/)
 
 ---
