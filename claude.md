@@ -33,6 +33,7 @@ The repo is small but mostly complete as a demo:
 - Seed data exists and is intentionally written to create cross-entry childhood and relationship patterns.
 - Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; `Start fresh` opens a compact ask-style input; `Cmd+Enter`/`Ctrl+Enter` submits the reflection composer; extracted entity sections (patterns, emotions, themes, IFS parts, schemas, people, body signals) render only when that reflection includes updates; the primary submit action is a centered `reflect` button.
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
+- SurrealDB startup now validates required env vars with clear `RuntimeError` messages; namespace/database default to `main` when unset and also accept `SURREAL_NAMESPACE` / `SURREAL_DATABASE` aliases.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
 - Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
@@ -215,8 +216,8 @@ Implemented in [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py).
 The code assumes environment variables for:
 
 - `SURREAL_URL`
-- `SURREAL_NS`
-- `SURREAL_DB`
+- `SURREAL_NS` (optional, defaults to `main`; alias: `SURREAL_NAMESPACE`)
+- `SURREAL_DB` (optional, defaults to `main`; alias: `SURREAL_DATABASE`)
 - `SURREAL_USER`
 - `SURREAL_PASS`
 - `OPENAI_API_KEY`

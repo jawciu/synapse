@@ -118,8 +118,8 @@ Add these to `.env` before running:
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY` (required for reflection extraction)
 - `SURREAL_URL`
-- `SURREAL_NS`
-- `SURREAL_DB`
+- `SURREAL_NS` (optional, defaults to `main`; also accepts `SURREAL_NAMESPACE`)
+- `SURREAL_DB` (optional, defaults to `main`; also accepts `SURREAL_DATABASE`)
 - `SURREAL_USER`
 - `SURREAL_PASS`
 

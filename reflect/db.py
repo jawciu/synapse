@@ -32,10 +32,31 @@ vs.SEARCH_QUERY = """
 """
 
 
+def _get_required_env(*names: str, default: str | None = None) -> str:
+    """Return the first non-empty env var from names, or raise a clear config error."""
+    for name in names:
+        value = os.getenv(name)
+        if value and value.strip():
+            return value.strip()
+    if default is not None:
+        return default
+    if len(names) == 1:
+        raise RuntimeError(f"Missing required environment variable: {names[0]}")
+    aliases = ", ".join(names)
+    raise RuntimeError(f"Missing required environment variable (any of: {aliases})")
+
+
 def get_connection() -> Surreal:
-    conn = Surreal(url=os.getenv("SURREAL_URL"))
-    conn.use(os.getenv("SURREAL_NS"), os.getenv("SURREAL_DB"))
-    conn.signin({"username": os.getenv("SURREAL_USER"), "password": os.getenv("SURREAL_PASS")})
+    surreal_url = _get_required_env("SURREAL_URL")
+    # Keep local/dev-friendly defaults while still accepting alternate provider-style names.
+    surreal_ns = _get_required_env("SURREAL_NS", "SURREAL_NAMESPACE", default="main")
+    surreal_db = _get_required_env("SURREAL_DB", "SURREAL_DATABASE", default="main")
+    surreal_user = _get_required_env("SURREAL_USER")
+    surreal_pass = _get_required_env("SURREAL_PASS")
+
+    conn = Surreal(url=surreal_url)
+    conn.use(surreal_ns, surreal_db)
+    conn.signin({"username": surreal_user, "password": surreal_pass})
     return conn
 
 
