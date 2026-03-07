@@ -48,7 +48,7 @@ just sync
 - `uv sync` for Python dependencies.
 - `npm install` inside `frontend/` (run as one command so it doesn't fail from the repo root).
 
-3) Run all services
+3) Run core services
 
 ```bash
 just dev
@@ -58,10 +58,21 @@ just dev
 
 - FastAPI on `http://localhost:8000`
 - Vite on `http://localhost:5173`
-- Telegram bot polling process
-- logs at `.tmp/synapse-api.log`, `.tmp/synapse-frontend.log`, and `.tmp/synapse-telegram.log`
+- logs at `.tmp/synapse-api.log` and `.tmp/synapse-frontend.log`
 
-Or run independently:
+Run Telegram separately (recommended) in another terminal:
+
+```bash
+just telegram
+```
+
+Or run all three in one terminal:
+
+```bash
+just dev-all
+```
+
+You can still run each service independently:
 
 ```bash
 just backend
@@ -71,7 +82,7 @@ just telegram
 
 If you’re on a machine without `just` installed yet, retry step 1 first, then `just --list` and `just dev`.
 
-Stop all services started by `just dev`:
+Stop all services started by `just dev` or `just dev-all`:
 
 ```bash
 just stop
@@ -112,4 +123,4 @@ Optional:
 
 - `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`)
 - `LANGCHAIN_TRACING_V2`, `LANGCHAIN_PROJECT` (if tracing is enabled)
-- `TELEGRAM_BOT_TOKEN` (required for `just dev` and `just telegram`)
+- `TELEGRAM_BOT_TOKEN` (required for `just telegram` and `just dev-all`)

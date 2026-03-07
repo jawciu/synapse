@@ -502,9 +502,10 @@ Use [`README.md`](/Users/ian/dev/synapse/README.md) for the canonical onboarding
 The recommended local runner is:
 
 - `just sync`
-- `just dev` (runs backend + frontend + Telegram bot, and first kills any PIDs recorded in `.tmp/synapse-pids` from a previous run)
-- `just stop` (to shut down all three services)
-- `just telegram` (optional standalone bot runner)
+- `just dev` (runs backend + frontend, and first kills any PIDs recorded in `.tmp/synapse-pids` from a previous run)
+- `just telegram` (optional standalone bot runner, typically in a second terminal)
+- `just dev-all` (optional combined runner for backend + frontend + Telegram in one terminal)
+- `just stop` (to shut down whichever services were launched by `just dev` or `just dev-all`)
 
 ### Install dependencies
 

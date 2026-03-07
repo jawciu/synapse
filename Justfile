@@ -22,13 +22,36 @@ frontend:
 telegram:
   uv run python -m reflect.telegram_bot
 
-# Run backend + frontend + Telegram in one terminal.
+# Run backend + frontend in one terminal.
 # Press Ctrl+C to stop all processes.
 dev:
   mkdir -p .tmp; \
   if [ -f .tmp/synapse-pids ]; then \
     . .tmp/synapse-pids; \
-    kill "$API_PID" "$FRONTEND_PID" "$TELEGRAM_PID" >/dev/null 2>&1 || true; \
+    kill ${API_PID:-} ${FRONTEND_PID:-} ${TELEGRAM_PID:-} >/dev/null 2>&1 || true; \
+  fi; \
+  rm -f .tmp/synapse-pids; \
+  uv run uvicorn api_server:app --reload --host 0.0.0.0 --port {{PORT_API}} > .tmp/synapse-api.log 2>&1 & \
+  API_PID=$!; \
+  (cd frontend && VITE_API_URL={{API_URL}} npm run dev -- --host 0.0.0.0 --port {{PORT_FRONTEND}}) > .tmp/synapse-frontend.log 2>&1 & \
+  FRONTEND_PID=$!; \
+  echo "API_PID=$API_PID" > .tmp/synapse-pids; \
+  echo "FRONTEND_PID=$FRONTEND_PID" >> .tmp/synapse-pids; \
+  echo "Running Synapse"; \
+  echo "Backend:  http://localhost:{{PORT_API}}"; \
+  echo "Frontend: http://localhost:{{PORT_FRONTEND}}"; \
+  echo "Telegram bot: not started (run separately with: just telegram)"; \
+  echo "Stop with: just stop"; \
+  trap 'kill $API_PID $FRONTEND_PID >/dev/null 2>&1 || true' INT TERM EXIT; \
+  tail -f .tmp/synapse-api.log .tmp/synapse-frontend.log
+
+# Run backend + frontend + Telegram in one terminal.
+# Press Ctrl+C to stop all processes.
+dev-all:
+  mkdir -p .tmp; \
+  if [ -f .tmp/synapse-pids ]; then \
+    . .tmp/synapse-pids; \
+    kill ${API_PID:-} ${FRONTEND_PID:-} ${TELEGRAM_PID:-} >/dev/null 2>&1 || true; \
   fi; \
   rm -f .tmp/synapse-pids; \
   uv run uvicorn api_server:app --reload --host 0.0.0.0 --port {{PORT_API}} > .tmp/synapse-api.log 2>&1 & \
@@ -48,11 +71,11 @@ dev:
   trap 'kill $API_PID $FRONTEND_PID $TELEGRAM_PID >/dev/null 2>&1 || true' INT TERM EXIT; \
   tail -f .tmp/synapse-api.log .tmp/synapse-frontend.log .tmp/synapse-telegram.log
 
-# Stop services started by `just dev`.
+# Stop services started by `just dev` or `just dev-all`.
 stop:
   @if [ -f .tmp/synapse-pids ]; then \
     . .tmp/synapse-pids; \
-    kill "$API_PID" "$FRONTEND_PID" "$TELEGRAM_PID" >/dev/null 2>&1 || true; \
+    kill ${API_PID:-} ${FRONTEND_PID:-} ${TELEGRAM_PID:-} >/dev/null 2>&1 || true; \
     rm -f .tmp/synapse-pids; \
     echo "Stopped synapse processes"; \
   else \
