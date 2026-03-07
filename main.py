@@ -1,6 +1,8 @@
-def main():
-    print("Hello from langchain-hackathon!")
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
+load_dotenv()
 
-if __name__ == "__main__":
-    main()
+llm = ChatOpenAI(model="gpt-4o-mini")
+response = llm.invoke("can you give me a summary of chapter 1 of project hail mary")
+print(response.content)
