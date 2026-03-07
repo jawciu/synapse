@@ -12,6 +12,19 @@ from .prompts import EXTRACTION_SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 
+_CRISIS_KEYWORDS = [
+    "kill myself", "kill myslef", "end my life", "end it all", "want to die",
+    "wanna die", "suicide", "suicidal", "self-harm", "self harm", "hurt myself",
+    "don't want to live", "dont want to live", "no reason to live",
+    "better off dead", "not worth living",
+]
+
+
+def _check_crisis(text: str) -> bool:
+    lower = text.lower()
+    return any(kw in lower for kw in _CRISIS_KEYWORDS)
+
+
 def _empty_extraction() -> dict:
     return {
         "patterns": [],
@@ -66,9 +79,14 @@ def extract_with_agent(text: str, extraction_tools: list) -> dict:
         elif "```" in json_str:
             json_str = json_str.split("```")[1].split("```")[0]
         parsed = json.loads(json_str.strip())
-        if isinstance(parsed, dict):
-            return parsed
-        return _empty_extraction()
+        if not isinstance(parsed, dict):
+            parsed = _empty_extraction()
+        # Safety net: force crisis_flag if keywords detected
+        if _check_crisis(text):
+            parsed["crisis_flag"] = True
+        return parsed
     except (json.JSONDecodeError, IndexError):
-        # Fallback: return empty extraction
-        return _empty_extraction()
+        result = _empty_extraction()
+        if _check_crisis(text):
+            result["crisis_flag"] = True
+        return result

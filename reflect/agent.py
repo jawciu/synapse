@@ -156,12 +156,28 @@ def query_graph(state: ReflectionState) -> dict:
     return {"graph_connections": connections}
 
 
+CRISIS_FALLBACK_INSIGHT = (
+    "I hear you, and I want you to know that what you're feeling right now matters. "
+    "You don't have to go through this alone — even though it might feel that way. "
+    "The fact that you're expressing this takes real courage, and it tells me there's a part of you that's reaching out for something different.\n\n"
+    "Please consider talking to someone you trust — a friend, a family member, or anyone in your life who cares about you. "
+    "If you feel comfortable, reaching out to a therapist, counsellor, or your GP can also make a real difference. "
+    "You deserve support, and there are people who want to help."
+)
+
+
 @traceable(run_type="chain", name="generate_insights")
 def generate_insights(state: ReflectionState) -> dict:
+    extracted = state["extracted"]
+
+    # On crisis, use a hardcoded compassionate response
+    if extracted.get("crisis_flag"):
+        return {"insights": CRISIS_FALLBACK_INSIGHT}
+
     llm = ChatOpenAI(model="gpt-5-mini", temperature=0.7)
     prompt_text = INSIGHT_PROMPT.format(
         reflection_text=state["reflection_text"],
-        extracted=json.dumps(state["extracted"], default=str),
+        extracted=json.dumps(extracted, default=str),
         graph_connections=json.dumps(state["graph_connections"], default=str),
     )
     response = llm.invoke(prompt_text)

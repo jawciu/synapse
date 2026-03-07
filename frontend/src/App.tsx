@@ -567,6 +567,7 @@ function App() {
       return;
     }
 
+    const textSnapshot = reflectionText;
     setReflectionBusy(true);
     setReflectionError("");
 
@@ -575,7 +576,7 @@ function App() {
         method: "POST",
         headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({
-          reflection_text: reflectionText,
+          reflection_text: textSnapshot,
           daily_prompt: dailyPrompt || null,
           thread_id: null,
           source: "app",
@@ -585,6 +586,19 @@ function App() {
       const payload = (await response.json()) as ReflectionResponse & { detail?: string };
       if (!response.ok) {
         throw new Error(payload.detail || "Unable to run reflection");
+      }
+
+      // Safety net: force crisis_flag if input contains crisis keywords
+      const lower = textSnapshot.toLowerCase();
+      const crisisKeywords = [
+        "kill myself", "kill myslef", "end my life", "end it all", "want to die",
+        "wanna die", "suicide", "suicidal", "self-harm", "self harm", "hurt myself",
+        "don't want to live", "dont want to live", "no reason to live",
+      ];
+      if (crisisKeywords.some((kw) => lower.includes(kw))) {
+        if (payload.result.extracted) {
+          payload.result.extracted.crisis_flag = true;
+        }
       }
 
       setLastReflection(payload.result);
