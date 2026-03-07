@@ -1,6 +1,8 @@
 import os
 import logging
+import tempfile
 from dotenv import load_dotenv
+from openai import OpenAI
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from telegram import Update
@@ -113,6 +115,64 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(answer)
 
 
+# ── Voice handler ──
+
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    await update.message.chat.send_action("typing")
+    await update.message.reply_text("Got your voice note! Transcribing...")
+
+    voice_file = await update.message.voice.get_file()
+
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        await voice_file.download_to_drive(tmp_path)
+
+        openai_client = OpenAI()
+        with open(tmp_path, "rb") as audio:
+            transcription = openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio,
+            )
+        text = transcription.text
+        logger.info("Voice transcription for user %s: %s", user_id, text)
+    finally:
+        os.remove(tmp_path)
+
+    await update.message.reply_text("Analyzing your voice note... this takes 20-30 seconds.")
+    await update.message.chat.send_action("typing")
+
+    count = context.user_data.get("reflection_count", 0) + 1
+    context.user_data["reflection_count"] = count
+    config = {"configurable": {"thread_id": f"tg-reflect-{user_id}-{count}"}}
+
+    result = reflection_graph.invoke(
+        {"reflection_text": text, "daily_prompt": None, "messages": []},
+        config=config,
+    )
+
+    extracted = result.get("extracted", {})
+    patterns = [p["name"] for p in extracted.get("patterns", [])]
+    emotions = [e["name"] for e in extracted.get("emotions", [])]
+    insights = result.get("insights", "")
+    questions = result.get("follow_up_questions", [])
+
+    snippet = text[:120] + ("..." if len(text) > 120 else "")
+    response = f"I've transcribed your voice note and added it to your graph. Here is what I heard: _{snippet}_\n\n"
+    if patterns:
+        response += f"*Patterns:* {', '.join(patterns)}\n"
+    if emotions:
+        response += f"*Emotions:* {', '.join(emotions)}\n"
+    if insights:
+        response += f"\n*Insights:*\n{insights}\n"
+    if questions:
+        response += "\n*Reflect on:*\n" + "\n".join(f"• {q}" for q in questions)
+
+    await update.message.reply_text(response, parse_mode="Markdown")
+
+
 # ── Nudge job ──
 
 async def daily_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -180,6 +240,7 @@ def main() -> None:
     app.add_handler(CommandHandler("reflect", reflect_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 
     logger.info("Bot is running...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
