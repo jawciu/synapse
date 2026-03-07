@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Synapse — Architecture for Beginners</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d14;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, sans-serif;
+      padding: 40px 32px;
+      max-width: 1100px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #64748b;
+      font-size: 1rem;
+      margin-bottom: 12px;
+    }
+
+    .intro {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-left: 4px solid #a78bfa;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 52px;
+      color: #cbd5e1;
+      font-size: 0.95rem;
+    }
+
+    .intro p { margin-bottom: 10px; }
+    .intro p:last-child { margin-bottom: 0; }
+
+    .section {
+      margin-bottom: 64px;
+    }
+
+    .section-header {
+      margin-bottom: 20px;
+    }
+
+    .section-number {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #475569;
+    }
+
+    .section-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+
+    .section-intro {
+      color: #94a3b8;
+      font-size: 0.93rem;
+      max-width: 780px;
+    }
+
+    /* Explainer boxes */
+    .explainer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .explainer {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+
+    .explainer-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .explainer-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 6px;
+    }
+
+    .explainer-body {
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    .color-purple { color: #a78bfa; border-top: 2px solid #a78bfa; padding-top: 12px; }
+    .color-blue   { color: #60a5fa; border-top: 2px solid #60a5fa; padding-top: 12px; }
+    .color-green  { color: #34d399; border-top: 2px solid #34d399; padding-top: 12px; }
+    .color-orange { color: #fb923c; border-top: 2px solid #fb923c; padding-top: 12px; }
+    .color-pink   { color: #f472b6; border-top: 2px solid #f472b6; padding-top: 12px; }
+    .color-yellow { color: #fbbf24; border-top: 2px solid #fbbf24; padding-top: 12px; }
+
+    /* Diagram card */
+    .diagram-card {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 32px;
+      overflow-x: auto;
+    }
+
+    .diagram-card .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Callout (what to look for) */
+    .callout {
+      margin-top: 20px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-left: 3px solid #60a5fa;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 0.83rem;
+      color: #94a3b8;
+    }
+
+    .callout strong {
+      color: #60a5fa;
+      font-weight: 700;
+    }
+
+    .callout ul {
+      margin-top: 8px;
+      padding-left: 18px;
+    }
+
+    .callout ul li {
+      margin-bottom: 4px;
+    }
+
+    /* Step annotations */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .step-text {
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+
+    .step-text strong {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    /* Key term pills */
+    .term {
+      display: inline;
+      background: #1e293b;
+      color: #a78bfa;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .diagram-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #1e293b;
+      margin: 56px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>synapse</h1>
+  <p class="subtitle">Architecture & Data Flow — A beginner's visual guide</p>
+
+  <div class="intro">
+    <p><strong style="color:#e2e8f0">What is this app?</strong> Synapse is a journaling app with a brain. You write (or speak) a reflection, and an AI reads it — extracting your emotional patterns, inner psychological parts, and recurring themes — then stores all of that in a database shaped like a web of connections. Over time, it builds a "graph" of who you are psychologically.</p>
+    <p><strong style="color:#e2e8f0">What's a "graph database"?</strong> Instead of storing data in rows like a spreadsheet, a graph database stores it as nodes (things) and edges (connections between things). Think of it like a mind map that the AI fills in automatically.</p>
+    <p><strong style="color:#e2e8f0">How to read these diagrams:</strong> Each section below has a plain-English explanation first, then a technical diagram. Boxes are components, arrows show data moving between them. Read top-to-bottom or left-to-right.</p>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 1: System Overview
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">Section 1</div>
+      <div class="section-title">The Big Picture</div>
+      <div class="section-intro">There are four layers in Synapse. Data flows from you (the user) → through an API → into AI agents → and finally into the database. The diagram below shows all the pieces and how they connect.</div>
+    </div>
+
+    <div class="explainer-grid">
+      <div class="explainer">
+        <div class="explainer-label color-purple">Layer 1 — You</div>
+        <div class="explainer-title">Client (Telegram or Web Browser)</div>
+        <div class="explainer-body">Two ways to use the app: a Telegram bot (you message it like a friend) or a web frontend (a React app in the browser). Both send your text to the same backend.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-blue">Layer 2 — API</div>
+        <div class="explainer-title">FastAPI Server</div>
+        <div class="explainer-body">An API is a "front door" for your backend. FastAPI listens for requests from the clients and decides what to do with them. Think of it as the receptionist that routes your message to the right department.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-green">Layer 3 — Agents</div>
+        <div class="explainer-title">LangGraph AI Agents</div>
+        <div class="explainer-body">Agents are AI programs that can reason and take multiple steps to complete a task — like a human who reads something, decides what to do, looks things up, and then writes a response. LangGraph is the framework that organises those steps.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-pink">Layer 4 — Memory</div>
+        <div class="explainer-title">SurrealDB (Graph + Vector)</div>
+        <div class="explainer-body">The database stores everything permanently. It uses two storage modes: a graph (nodes and connections) for structured patterns, and a vector store (maths-based search) so the AI can find similar past reflections by meaning, not just keywords.</div>
+      </div>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid">
+graph LR
+    subgraph Clients["YOU — Two ways to access"]
+        TG["Telegram Bot"]
+        FE["Web App\n(React in browser)"]
+    end
+
+    subgraph API["FASTAPI SERVER — Routes your request"]
+        R["/api/reflection\n(submit a journal entry)"]
+        C["/api/chat\n(ask a question)"]
+        D["/api/dashboard\n(view your patterns)"]
+    end
+
+    subgraph Agents["AI AGENTS — Do the thinking"]
+        RP["Reflection Pipeline\n6 sequential steps"]
+        CA["Chat Agent\nAnswers questions about your graph"]
+    end
+
+    subgraph LLMs["OPENAI — AI models used"]
+        GPT["GPT-4o\nMain reasoning model"]
+        WH["Whisper-1\nVoice → Text"]
+        EMB["text-embedding-3-small\nConverts text to numbers for search"]
+    end
+
+    subgraph DB["SURREALDB — Long-term memory"]
+        GR["Graph\nPatterns, emotions, people..."]
+        VS["Vector Store\nSearchable past reflections"]
+    end
+
+    TG -->|"voice note"| WH
+    WH -->|"transcript"| RP
+    TG -->|"text"| RP
+    TG -->|"question"| CA
+    FE --> R & C & D
+    R --> RP
+    C --> CA
+    D --> GR
+    RP --> GPT & EMB & GR & VS
+    CA --> GPT & GR & VS
+      </div>
+      <div class="callout">
+        <strong>Key insight:</strong> The Telegram bot and the web app are just two different "doors" into the exact same backend logic. Once your message enters the API, it takes the same path regardless of where it came from.
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 2: Reflection Pipeline
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">Section 2</div>
+      <div class="section-title">The Reflection Pipeline — 6 Steps the AI Takes</div>
+      <div class="section-intro">When you submit a journal entry, it doesn't just get saved. It goes through a 6-step automated pipeline. Each step is a "node" in a LangGraph StateGraph — imagine an assembly line where each station does one job and passes the result to the next.</div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>store_reflection</strong> — Your raw text is saved to the database immediately, and also converted into a "vector" (a list of numbers that captures the meaning of your text) so it can be searched later.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>extract_patterns</strong> — A ReAct AI agent reads your reflection. Before extracting anything, it first looks up your existing patterns and reads similar past reflections — so it reuses the same labels over time instead of inventing new ones. Then it outputs structured JSON: patterns, emotions, themes, IFS parts, schemas, people, body signals.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>update_graph</strong> — Everything extracted in step 2 gets written to the database. New patterns are created; existing ones have their occurrence count incremented. Connections (edges) are drawn between your reflection and every extracted item.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text"><strong>query_graph</strong> — The system queries your historical data: which patterns co-occur most, what triggers negative emotions, which patterns are most central in your graph. This context is gathered to feed into the next steps.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-text"><strong>generate_insights</strong> — GPT-4o synthesises your current reflection + the extracted items + the historical graph data into a short, warm insight paragraph — something a therapist might observe.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-text"><strong>generate_followups</strong> — GPT-4o generates exactly 3 follow-up questions tailored to what it found, to help you go deeper.</div>
+      </div>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid">
+flowchart TD
+    IN(["Your journal text enters here"])
+
+    subgraph SG["LangGraph StateGraph — 6 nodes run in sequence"]
+        N1["1. store_reflection\nSave text to database\nConvert to vector for search"]
+        N2["2. extract_patterns\nReAct Agent uses GPT-4o\nLooks up existing patterns first\nOutputs structured JSON"]
+        N3["3. update_graph\nWrite all extracted items to database\nConnect them to your reflection\nIncrement occurrence counts"]
+        N4["4. query_graph\nPull historical context:\nco-occurrences · triggers · central patterns"]
+        N5["5. generate_insights\nGPT-4o synthesises everything\ninto a warm, observational paragraph"]
+        N6["6. generate_followups\nGPT-4o writes 3 follow-up\nquestions just for you"]
+    end
+
+    OUT(["Results returned: patterns · emotions · insights · questions"])
+
+    IN --> N1 --> N2 --> N3 --> N4 --> N5 --> N6 --> OUT
+
+    style N2 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+    style N5 fill:#1e3a2f,stroke:#34d399,color:#d1fae5
+    style N6 fill:#1e3a2f,stroke:#34d399,color:#d1fae5
+      </div>
+      <div class="callout">
+        <strong>What is a StateGraph?</strong> LangGraph's StateGraph is like a flowchart where each box (node) is a Python function. Each function receives the current "state" (think of it as a shared notepad), does its job, and updates the notepad. The next function picks up where the last one left off. All 6 nodes share the same state object — so step 5 can see everything that steps 1–4 added.
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 3: Agents in Detail
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">Section 3</div>
+      <div class="section-title">What is a ReAct Agent? The Two Agents Explained</div>
+      <div class="section-intro">A ReAct agent is an AI that alternates between <em>Reasoning</em> (thinking about what to do) and <em>Acting</em> (calling a tool to get information). It keeps looping — think, act, observe result, think again — until it has enough to give a final answer. Synapse uses two different ReAct agents for two different purposes.</div>
+    </div>
+
+    <div class="grid-2">
+
+      <div>
+        <div class="explainer" style="margin-bottom:16px">
+          <div class="explainer-label color-purple">Agent 1 — Inside the Pipeline</div>
+          <div class="explainer-title">Extraction Agent</div>
+          <div class="explainer-body">
+            Its only job is to read one reflection and output a JSON object of everything psychological it can find. <br><br>
+            Before extracting, it calls two tools: one to see what patterns already exist in your graph (so it reuses "perfectionism" instead of creating "being too perfect"), and one to retrieve similar past reflections for context. This is called <span class="term">RAG</span> — Retrieval-Augmented Generation. The AI's output is grounded in real data, not just guesses.
+          </div>
+        </div>
+        <div class="diagram-card">
+          <div class="diagram-label color-purple">Extraction ReAct Agent — sequence of calls</div>
+          <div class="mermaid">
+sequenceDiagram
+    participant P as Pipeline (Step 2)
+    participant A as GPT-4o Agent
+    participant T1 as Tool: get_existing_patterns
+    participant T2 as Tool: retrieve_similar_reflections
+    participant DB as SurrealDB
+
+    P->>A: "Here is a new reflection. Extract patterns."
+    Note over A: Thinks: I should check existing labels first
+    A->>T1: call tool
+    T1->>DB: query all patterns/parts/schemas
+    DB-->>A: list of existing labels
+    Note over A: Thinks: Now find similar past reflections
+    A->>T2: call tool
+    T2->>DB: vector search (by meaning)
+    DB-->>A: 3-5 similar past entries
+    Note over A: Now I have enough context. Extract.
+    A-->>P: JSON output with all categories
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="explainer" style="margin-bottom:16px">
+          <div class="explainer-label color-green">Agent 2 — The Ask Tab</div>
+          <div class="explainer-title">Chat Agent (13 tools)</div>
+          <div class="explainer-body">
+            This agent answers your freeform questions about your own graph — like "what patterns do I repeat?" or "what triggers my anxiety?" <br><br>
+            It has 13 tools, each of which runs a different database query. The agent decides which tools to call based on your question. It also has <span class="term">memory</span> via thread IDs — it remembers what you said earlier in the same conversation.
+          </div>
+        </div>
+        <div class="diagram-card">
+          <div class="diagram-label color-green">Chat Agent — tool selection loop</div>
+          <div class="mermaid">
+flowchart TD
+    Q(["Your question: 'Why do I always feel anxious?'"])
+    AG["GPT-4o ReAct Agent\nMemory: remembers previous messages\nvia thread_id"]
+
+    subgraph Tools["13 available tools — agent picks which ones it needs"]
+        T1["hybrid_graph_search\nSearch nodes by meaning"]
+        T2["get_all_patterns_overview\nget_all_emotions_overview"]
+        T3["get_ifs_parts_overview\nget_schemas_overview\nget_people_overview"]
+        T4["get_emotion_triggers\nget_pattern_connections\nget_temporal_evolution\nsemantic_search_reflections"]
+    end
+
+    DB[("SurrealDB\nAll your stored data")]
+
+    Q --> AG
+    AG -->|"Thinks: I need emotion triggers and pattern data"| T2
+    AG --> T4
+    T2 & T4 -->|"Run database queries"| DB
+    DB --> AG
+    AG -->|"Synthesises all results into an answer"| ANS(["Warm, specific response about your patterns"])
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:24px">
+      <strong>Tools vs. direct calls:</strong> A "tool" in AI is just a Python function the model is allowed to call. The model decides when and whether to call it — you don't hardcode the logic. This makes agents flexible: they can handle many types of questions without needing a different code path for each one.
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 4: SurrealDB Graph Schema
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">Section 4</div>
+      <div class="section-title">The Database — Your Psychological Graph</div>
+      <div class="section-intro">SurrealDB stores your data as a graph: nodes are "things" (a pattern, an emotion, a person), and edges are "relationships between things" (this reflection <em>reveals</em> this pattern; this IFS part <em>protects against</em> this schema). Over time, the graph fills in and the AI can traverse connections to find deeper roots.</div>
+    </div>
+
+    <div class="explainer-grid">
+      <div class="explainer">
+        <div class="explainer-label color-blue">Concept</div>
+        <div class="explainer-title">Graph nodes = psychological concepts</div>
+        <div class="explainer-body">Each unique concept (e.g. "perfectionism", "anxiety", "inner critic") is stored once as a node. Every time it appears in a new reflection, its occurrence count goes up. You can see what you think about most often.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-orange">Concept</div>
+        <div class="explainer-title">Graph edges = connections</div>
+        <div class="explainer-body">An edge says "this reflection REVEALS this pattern" or "this person TRIGGERS this pattern". The graph lets the AI traverse: "what emotions are triggered by what themes?" without scanning all your text every time.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-green">Concept</div>
+        <div class="explainer-title">Vector embeddings = search by meaning</div>
+        <div class="explainer-body">Some nodes also have an "embedding" — a list of ~1500 numbers that encodes what the text means mathematically. Two concepts with similar meanings will have similar numbers. This lets the AI search by meaning ("find patterns similar to perfectionism") not just by exact keyword match.</div>
+      </div>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid">
+erDiagram
+    reflection {
+        text text "Your raw journal entry"
+        datetime created_at "When you wrote it"
+        string daily_prompt "The prompt shown to you"
+    }
+    pattern {
+        string name "e.g. perfectionism"
+        string category "CBT-style category"
+        int occurrences "How many times seen"
+        vector embedding "For similarity search"
+    }
+    emotion {
+        string name "e.g. anxiety"
+        string valence "positive / negative / neutral"
+        float intensity "0.0 to 1.0"
+    }
+    theme {
+        string name "e.g. work pressure"
+        vector embedding "For similarity search"
+    }
+    ifs_part {
+        string name "e.g. inner critic"
+        string role "exile / manager / firefighter"
+        int occurrences
+        vector embedding
+    }
+    schema_pattern {
+        string name "e.g. unrelenting standards"
+        string domain "Schema Therapy domain"
+        string coping_style "how you cope with it"
+        vector embedding
+    }
+    person {
+        string name "e.g. dad"
+        string relationship "parent / friend / partner"
+        int occurrences
+        vector embedding
+    }
+    body_signal {
+        string name "e.g. chest tightness"
+        string location "where in the body"
+        int occurrences
+    }
+
+    reflection ||--o{ pattern : "reveals"
+    reflection ||--o{ emotion : "expresses"
+    reflection ||--o{ theme : "about"
+    reflection ||--o{ ifs_part : "activates"
+    reflection ||--o{ schema_pattern : "triggers_schema"
+    reflection ||--o{ person : "mentions"
+    reflection ||--o{ body_signal : "feels_in_body"
+    pattern ||--o{ pattern : "co_occurs_with"
+    emotion ||--o{ theme : "triggered_by"
+    ifs_part ||--o{ schema_pattern : "protects_against"
+    person ||--o{ pattern : "triggers_pattern"
+      </div>
+      <div class="callout">
+        <strong>Reading this diagram:</strong> Each box is a table (a type of node). The lines between them are edges (relationship types). The label on the line is what that connection means. For example: a <code>reflection</code> "reveals" a <code>pattern</code> — meaning "this journal entry showed this psychological pattern." The <code>||--o{</code> notation means "one reflection can reveal many patterns."
+        <ul>
+          <li>Nodes with <strong>vector embedding</strong> fields can be searched by meaning (semantic search).</li>
+          <li><strong>emotion</strong> and <strong>body_signal</strong> don't have embeddings — they're matched by exact name.</li>
+          <li>Your raw reflection text lives in a separate vector store table managed by the langchain-surrealdb library.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 5: Voice Flow
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">Section 5</div>
+      <div class="section-title">Voice Notes — How Speech Becomes Graph Data</div>
+      <div class="section-intro">When you send a voice message in Telegram, it goes through an extra first step: speech-to-text transcription via OpenAI's Whisper model. After that, the transcript is treated exactly like typed text and runs through the full 6-step pipeline. The diagram below traces every step from your mouth to the database.</div>
+    </div>
+
+    <div class="explainer-grid">
+      <div class="explainer">
+        <div class="explainer-label color-orange">Step A</div>
+        <div class="explainer-title">Download the audio file</div>
+        <div class="explainer-body">Telegram stores voice notes on its servers. The bot downloads it as a temporary .ogg file (a compressed audio format) to the local machine. This file is only kept for a few seconds.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-yellow">Step B</div>
+        <div class="explainer-title">Transcribe with Whisper</div>
+        <div class="explainer-body">The audio file is sent to OpenAI's Whisper-1 model — a specialised AI trained only on speech recognition. It returns a plain text string. The temp file is then immediately deleted. Whisper supports 57 languages automatically.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-green">Step C</div>
+        <div class="explainer-title">Full pipeline runs on transcript</div>
+        <div class="explainer-body">The transcript text is passed into the same 6-node LangGraph pipeline as any typed reflection. From this point, voice and text are treated identically — both end up as nodes and edges in SurrealDB.</div>
+      </div>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid">
+sequenceDiagram
+    participant U as You (Telegram)
+    participant B as Bot (Python)
+    participant W as OpenAI Whisper-1
+    participant P as 6-Step Pipeline
+    participant DB as SurrealDB
+
+    U->>B: Send voice note (.ogg audio)
+    B->>B: Download file to temp storage
+    B->>W: POST audio file to Whisper API
+    W-->>B: Return transcript as plain text
+    B->>B: Log transcript to console
+    B->>B: Delete temp audio file (cleanup)
+    B->>U: "Got it! Analyzing your voice note..."
+    B->>P: Pass transcript into reflection_graph.invoke()
+    Note over P: All 6 steps run exactly as for typed text
+    P->>DB: Store reflection + vector
+    P->>DB: Upsert all extracted nodes and edges
+    P-->>B: Return {patterns, emotions, insights, questions}
+    B->>U: Reply: "Here is what I heard: [snippet]"\nPlus patterns · emotions · insights · follow-ups
+      </div>
+      <div class="callout">
+        <strong>Why delete the temp file?</strong> Voice notes contain personal information. The bot never stores audio on disk longer than the few seconds it takes to transcribe. After Whisper returns the text, the audio file is deleted in a <code>finally</code> block — which means it gets deleted even if the transcription fails partway through.
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 6: Key Terms Glossary
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">Section 6</div>
+      <div class="section-title">Glossary — Key Terms</div>
+    </div>
+    <div class="explainer-grid">
+      <div class="explainer">
+        <div class="explainer-label color-purple">Term</div>
+        <div class="explainer-title">LLM (Large Language Model)</div>
+        <div class="explainer-body">The core AI technology. GPT-4o is an LLM — a model trained on vast amounts of text that can read, reason, and generate language. In this app it does extraction, insight generation, and chat responses.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-blue">Term</div>
+        <div class="explainer-title">Agent</div>
+        <div class="explainer-body">An AI program that can take multiple steps, use tools, and make decisions autonomously. Unlike a single LLM call (input → output), an agent can loop: think → act → observe → think again.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-green">Term</div>
+        <div class="explainer-title">RAG (Retrieval-Augmented Generation)</div>
+        <div class="explainer-body">Before generating an answer, the AI first retrieves relevant information from a database. This grounds its output in real data rather than relying solely on what it learned during training.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-orange">Term</div>
+        <div class="explainer-title">Vector / Embedding</div>
+        <div class="explainer-body">A way to represent text as a list of numbers. Texts with similar meanings produce similar number lists. This lets you search by meaning: "find reflections similar to this one" without needing exact keyword matches.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-pink">Term</div>
+        <div class="explainer-title">Graph Database</div>
+        <div class="explainer-body">A database where data is stored as nodes (things) and edges (connections). Great for relationship-heavy data like "this pattern co-occurs with that pattern 14 times" — queries that would be slow in a regular SQL database.</div>
+      </div>
+      <div class="explainer">
+        <div class="explainer-label color-yellow">Term</div>
+        <div class="explainer-title">IFS / Schema / CBT</div>
+        <div class="explainer-body">Therapy frameworks the app borrows language from. IFS (Internal Family Systems) talks about "parts" of the psyche. Schema Therapy identifies deep patterns from childhood. CBT (Cognitive Behavioural Therapy) focuses on thought patterns. The app uses these as labelling systems, not as diagnosis.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#111827',
+        primaryColor: '#1e1b4b',
+        primaryTextColor: '#e0e7ff',
+        primaryBorderColor: '#6366f1',
+        lineColor: '#475569',
+        secondaryColor: '#1e3a2f',
+        tertiaryColor: '#1e293b',
+        edgeLabelBackground: '#111827',
+        clusterBkg: '#0f172a',
+        clusterBorder: '#334155',
+        titleColor: '#94a3b8',
+        nodeTextColor: '#e2e8f0',
+        labelTextColor: '#e2e8f0',
+        noteBkgColor: '#1e293b',
+        noteTextColor: '#94a3b8',
+        activationBkgColor: '#1e293b',
+        sequenceNumberColor: '#64748b',
+      },
+      flowchart: { curve: 'basis', padding: 24 },
+      sequence: { mirrorActors: false, messageAlign: 'left', width: 200 },
+    });
+  </script>
+</body>
+</html>
