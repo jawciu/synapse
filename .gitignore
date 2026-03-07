@@ -5,6 +5,11 @@ build/
 dist/
 wheels/
 *.egg-info
+frontend/node_modules/
+frontend/dist/
+.tmp/synapse-api.log
+.tmp/synapse-frontend.log
+.tmp/synapse-pids
 
 # Virtual environments
 .venv

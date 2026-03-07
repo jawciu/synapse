@@ -13,9 +13,9 @@ A self-reflection journaling app that uses **knowledge graphs + vector embedding
 - **LangChain + LangGraph** — orchestrates the AI pipeline
 - **SurrealDB v3 Cloud** — graph database + vector store (stores both structured relationships AND semantic embeddings)
 - **OpenAI** — GPT-4o for analysis, text-embedding-3-small for embeddings (1536 dims)
-- **Streamlit** — frontend with 3 tabs
+- **Vite + TypeScript React** — frontend with 3 tabs
 - **LangSmith** — tracing/observability on all nodes
-- **Plotly** — pattern visualization charts
+- **Recharts** — pattern visualization charts
 
 ---
 
@@ -34,7 +34,7 @@ langchain-hackathon/
 │   ├── extraction.py         # Agentic RAG extraction (retrieves context before extracting)
 │   ├── agent.py              # LangGraph 6-node StateGraph pipeline
 │   ├── chat_agent.py         # ReAct chat agent for "Ask your graph"
-│   └── app.py                # Streamlit UI (Reflect, My Patterns, Ask tabs)
+│   └── service.py            # API service helpers used by FastAPI endpoints
 └── data/
     └── sample_reflections/   # 18 .txt files (10 present-day + 8 childhood/family backstory)
 ```
@@ -208,7 +208,7 @@ The `hybrid_graph_search` tool searches across ALL node types simultaneously, th
 
 ---
 
-## Streamlit UI
+## Frontend UI
 
 **Sidebar:** Daily reflection prompt (random) + "Use This Prompt" button
 
@@ -220,11 +220,11 @@ The `hybrid_graph_search` tool searches across ALL node types simultaneously, th
 - Insights paragraph
 - 3 follow-up questions
 
-**Tab 2 — My Patterns:**
-- Top 5 per category (cognitive, emotional, relational, behavioral) — horizontal bar charts
-- IFS parts with color-coded progress bars (red=exile, teal=manager, gold=firefighter)
-- Schema patterns with domain colors and coping style labels
-- Emotions in 3 columns (negative/neutral/positive) with intensity bars
+**Tab 2 — Patterns:**
+- Top 5 per category (cognitive, emotional, relational, behavioral) chart panels
+- IFS and schema summaries
+- Pattern and emotion charting
+- People and body signal summaries
 - People in reflections with relationship types
 - Body signals with location
 

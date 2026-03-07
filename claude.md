@@ -1,4 +1,4 @@
-# Synapse / ReflectGraph
+# synapse
 
 This file is the working project brief for agents.
 
@@ -16,7 +16,7 @@ The product intent is:
 - Use the accumulated graph to surface historical patterns, likely roots, and follow-up questions.
 - Let the user query their graph conversationally afterward.
 
-The planned product name in the docs is `Synapse`. The implemented UI title is `ReflectGraph`.
+The product should be treated as `synapse` in the UI and agent-facing docs. Older planning language still mentions `ReflectGraph`, but that is now legacy naming.
 
 The strongest source of product intent is [PLAN.md](/Users/ian/dev/synapse/PLAN.md). The strongest source of truth for actual behavior is the code under [reflect/](/Users/ian/dev/synapse/reflect).
 
@@ -24,7 +24,7 @@ The strongest source of product intent is [PLAN.md](/Users/ian/dev/synapse/PLAN.
 
 The repo is small but mostly complete as a demo:
 
-- Python app with Streamlit UI.
+- Python backend service and TypeScript frontend entrypoint.
 - LangGraph pipeline for ingestion and analysis.
 - LangGraph ReAct chat agent for querying stored graph data.
 - SurrealDB used both as graph store and vector store backend.
@@ -38,12 +38,12 @@ What is not present:
 - No deployment config.
 - No auth, accounts, or multi-user isolation.
 - No production hardening around failures, retries, schema migrations, or privacy.
-- `README.md` is currently empty, so this file must carry most of the repo context.
 
 ## Tech stack
 
 - Python 3.12+ via [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml)
-- Streamlit for the UI
+- FastAPI for API transport (`api_server.py`)
+- TypeScript React frontend (Vite) in `frontend/` for the primary product UI
 - LangGraph / LangChain for orchestration and agents
 - OpenAI:
   - `gpt-4o` for extraction-adjacent generation, insights, follow-ups, and chat
@@ -53,7 +53,7 @@ What is not present:
   - structured graph tables and relations
   - vector search over reflection documents
   - vector search over embedded graph nodes
-- Plotly for charts in the dashboard tab
+- Recharts for charts in the new TypeScript dashboard
 - `langchain-surrealdb` with local query/index patches for SurrealDB v3 compatibility
 
 ## Repo map
@@ -72,7 +72,8 @@ What is not present:
 - [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py): 6-node LangGraph reflection pipeline
 - [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py): graph Q&A ReAct agent
 - [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py): extraction/chat/insight/follow-up prompts plus daily prompts
-- [reflect/app.py](/Users/ian/dev/synapse/reflect/app.py): Streamlit product UI
+- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes
+- [frontend/](/Users/ian/dev/synapse/frontend): Vite + TypeScript React UI scaffold
 
 ## Runtime model
 
@@ -111,7 +112,7 @@ Important details:
 - Uses `create_react_agent`.
 - Uses `gpt-4o`.
 - Uses `MemorySaver`.
-- Streamlit routes all chat messages through a single `thread_id` of `chat-session`, so memory is session-scoped and not user/account scoped.
+- Chat messages use `thread_id` values managed by the frontend (`chat-session*` when omitted) so context can continue across turns.
 
 ## Data flow in detail
 
@@ -119,16 +120,17 @@ Important details:
 
 When a user submits text in the Reflect tab:
 
-1. Streamlit calls `graph.invoke(...)`.
-2. The reflection text and current daily prompt are saved to `reflection`.
-3. The same text is embedded and added to the Surreal-backed vector store.
-4. The extraction agent is run on the reflection text.
-5. Extracted entities are upserted into graph tables.
-6. Edges are created between the reflection and extracted nodes.
-7. Several graph queries are run to collect historical context.
-8. A separate LLM call generates short insight text.
-9. Another LLM call generates exactly 3 follow-up questions.
-10. The UI renders extracted entities, insights, and follow-ups.
+1. The frontend submits `/api/reflection`.
+2. The backend runs `graph.invoke(...)`.
+3. The reflection text and current daily prompt are saved to `reflection`.
+4. The same text is embedded and added to the Surreal-backed vector store.
+5. The extraction agent is run on the reflection text.
+6. Extracted entities are upserted into graph tables.
+7. Edges are created between the reflection and extracted nodes.
+8. Several graph queries are run to collect historical context.
+9. A separate LLM call generates short insight text.
+10. Another LLM call generates exactly 3 follow-up questions.
+11. The UI renders extracted entities, insights, and follow-ups.
 
 ### Extraction flow
 
@@ -369,23 +371,33 @@ Most graph intelligence lives in [reflect/graph_store.py](/Users/ian/dev/synapse
 
 ## UI architecture
 
-Implemented entirely in [reflect/app.py](/Users/ian/dev/synapse/reflect/app.py).
+Primary implementation is now an API-driven frontend split:
 
-This is a single Streamlit app with three tabs and a sidebar.
+- [api_server.py](/Users/ian/dev/synapse/api_server.py) exposes `/api/*` endpoints.
+- [frontend/](/Users/ian/dev/synapse/frontend) renders the primary interface via React/TypeScript and Recharts.
+- There is no active Streamlit entrypoint in the product runtime.
+
+Current visual direction targets the TS UI:
+
+- lower-case `synapse` branding
+- bold gradient-backed interface with glass panels
+- modern chart primitives from Recharts
+- tabs labeled `reflect`, `patterns`, and `ask`
+- a stronger color system tuned for interactive visuals
 
 ### Sidebar
 
-- Shows one daily prompt from `get_daily_prompt()`
-- `New Prompt` swaps the prompt
-- `Use This Prompt` copies the current prompt into the reflection text area on rerun
+- sidebar shows the active prompt and session metadata
+- supports dedicated chat thread IDs for context continuity
 
 ### Tab 1: Reflect
 
 Purpose:
 
-- user writes a reflection
-- app runs the full LangGraph pipeline
-- app shows extracted entities and generated interpretation
+user writes a reflection, then submits it to `/api/reflection`.
+
+- app shows extracted entities and generated interpretation from the existing LangGraph result
+- results are rendered from API payload only (no internal module state coupling)
 
 Rendered sections:
 
@@ -404,7 +416,7 @@ Rendered sections:
 Purpose:
 
 - summarize what is already in SurrealDB
-- render a dashboard view over the accumulated graph
+- render a dashboard view over the accumulated graph via `/api/dashboard`
 
 Rendered sections:
 
@@ -415,21 +427,19 @@ Rendered sections:
 - people mentioned across reflections
 - body signals
 
-Implementation note:
-
-- This tab imports `_conn` and `_init` from [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py), so it reaches into module-level shared state rather than going through a formal data access layer.
+- Implementation note: dashboard rows still rely on server-side shared state set up by `reflect.agent._init()` through `reflect.service`.
 
 ### Tab 3: Ask
 
 Purpose:
 
-- freeform conversational querying of the stored graph through the ReAct chat agent
+- freeform conversational querying of the stored graph through the ReAct chat agent via `/api/chat`
 
 Behavior:
 
-- chat history is held in `st.session_state.chat_messages`
+- chat history is now held in frontend state, with backend thread ids for persistence
 - agent memory also uses `MemorySaver`
-- all asks use the same `thread_id` of `chat-session`
+- each frontend session should reuse the same `thread_id` for continuity
 
 ## Prompts and product tone
 
@@ -473,7 +483,13 @@ When evaluating extraction or graph quality, seed with this corpus first.
 
 ## How to run
 
-The repo does not currently document commands in `README.md`, but the inferred workflows are:
+Use [`README.md`](/Users/ian/dev/synapse/README.md) for the canonical onboarding path:
+
+The recommended local runner is:
+
+- `just sync`
+- `just dev`
+- `just stop` (to shut down both services)
 
 ### Install dependencies
 
@@ -483,11 +499,21 @@ Use the project package manager already implied by `uv.lock`:
 uv sync
 ```
 
-### Run the Streamlit app
+### Run the API server
 
 ```bash
-uv run streamlit run reflect/app.py
+uv run uvicorn api_server:app --reload --port 8000
 ```
+
+### Run the TypeScript frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+This expects the API on `http://localhost:8000`; set `VITE_API_URL` and `CORS_ORIGINS` for different host/ports.
 
 ### Seed the demo graph
 
@@ -504,7 +530,7 @@ uv run python surreal_test.py
 uv run python langchain_surreal.py
 ```
 
-Only `seed_data.py` and `reflect/app.py` are central to the actual product.
+Only `seed_data.py`, `api_server.py`, and `frontend/` are central to the production product surface.
 
 ## Observability
 
@@ -539,9 +565,9 @@ Examples:
 
 [main.py](/Users/ian/dev/synapse/main.py) is just an OpenAI call used as a scratch connectivity check.
 
-### 3. `README.md` is effectively absent
+### 3. No docs for optional run flags
 
-Do not assume it reflects current behavior. If you improve onboarding later, consider updating `README.md` too.
+If you add environment-specific startup modes, document them in [`README.md`](/Users/ian/dev/synapse/README.md).
 
 ### 4. Some files are experiments / spikes
 
@@ -551,9 +577,9 @@ Do not assume it reflects current behavior. If you improve onboarding later, con
 
 Treat them as exploratory utilities unless the user asks to formalize them.
 
-### 5. `streamlit-agraph` is installed but not currently used
+### 5. Legacy graph visualization packages
 
-The dashboard is Plotly and HTML/CSS snippets, not an interactive graph visualization.
+`streamlit-agraph` has been removed from runtime dependencies during TS cutover.
 
 ### 6. The app uses module-level shared state
 
@@ -604,7 +630,7 @@ If the task touches data modeling or search:
 
 If the task touches the UI:
 
-- inspect [reflect/app.py](/Users/ian/dev/synapse/reflect/app.py)
+- inspect [frontend/src/App.tsx](/Users/ian/dev/synapse/frontend/src/App.tsx)
 - preserve the three-tab mental model unless intentionally redesigning the product
 
 If the task touches prompts or therapeutic framing:
@@ -622,7 +648,6 @@ If the task changes commands, env vars, schema, tabs, tools, or key flows:
 
 These are not yet implemented, but they would reduce future confusion:
 
-- fill in [README.md](/Users/ian/dev/synapse/README.md) with setup and run instructions
 - document the required `.env` keys explicitly
 - add a real test harness around extraction parsing and graph queries
 - document expected SurrealDB version
@@ -645,7 +670,7 @@ This file was written after reading:
 - [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py)
 - [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py)
 - [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py)
-- [reflect/app.py](/Users/ian/dev/synapse/reflect/app.py)
+- [frontend/src/App.tsx](/Users/ian/dev/synapse/frontend/src/App.tsx)
 - the seeded reflections under [data/sample_reflections/](/Users/ian/dev/synapse/data/sample_reflections)
 
 If you make the codebase materially different from this description, refresh this section too.
