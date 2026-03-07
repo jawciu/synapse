@@ -1,5 +1,5 @@
 import json
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langsmith import traceable
@@ -10,7 +10,7 @@ from .prompts import EXTRACTION_SYSTEM_PROMPT
 @traceable(run_type="chain", name="extract_with_agent")
 def extract_with_agent(text: str, extraction_tools: list) -> dict:
     """Use an agentic RAG approach to extract patterns — retrieves existing data first."""
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0)
 
     agent = create_react_agent(
         model=llm,

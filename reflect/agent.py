@@ -155,7 +155,7 @@ def query_graph(state: ReflectionState) -> dict:
 
 @traceable(run_type="chain", name="generate_insights")
 def generate_insights(state: ReflectionState) -> dict:
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+    llm = ChatOpenAI(model="gpt-5-mini", temperature=0.7)
     prompt_text = INSIGHT_PROMPT.format(
         reflection_text=state["reflection_text"],
         extracted=json.dumps(state["extracted"], default=str),
@@ -167,7 +167,7 @@ def generate_insights(state: ReflectionState) -> dict:
 
 @traceable(run_type="chain", name="generate_followups")
 def generate_followups(state: ReflectionState) -> dict:
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.8)
+    llm = ChatOpenAI(model="gpt-5-mini", temperature=0.8)
     extracted = state["extracted"]
     patterns_str = json.dumps([p["name"] for p in extracted.get("patterns", [])], default=str)
     people_str = json.dumps([p["name"] for p in extracted.get("people", [])], default=str)

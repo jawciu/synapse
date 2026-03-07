@@ -15,4 +15,5 @@ dependencies = [
     "python-telegram-bot[job-queue]>=21.0",
     "surrealdb>=1.0.8",
     "uvicorn>=0.37.0",
+    "langchain-anthropic>=1.2.0",
 ]

@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -8,7 +8,7 @@ from .agent import get_chat_tools
 
 def build_chat_agent():
     tools = get_chat_tools()
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+    llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0.7)
 
     return create_react_agent(
         model=llm,
