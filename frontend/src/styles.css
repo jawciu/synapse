@@ -615,7 +615,8 @@ textarea {
 }
 
 .chat-line {
-  margin: 8px 0;
+  margin: 12px 0;
+  line-height: 1.6;
 }
 
 .chat-line.user {
@@ -625,6 +626,56 @@ textarea {
 .chat-line.assistant,
 .chat-line.ai {
   color: #456e57;
+}
+
+.chat-line.assistant h2,
+.chat-line.ai h2 {
+  font-size: 1.1rem;
+  margin: 16px 0 8px;
+  color: #3a5a45;
+}
+
+.chat-line.assistant h3,
+.chat-line.ai h3 {
+  font-size: 1rem;
+  margin: 14px 0 6px;
+  color: #3a5a45;
+}
+
+.chat-line.assistant p,
+.chat-line.ai p {
+  margin: 6px 0;
+}
+
+.chat-line.assistant ul,
+.chat-line.ai ul,
+.chat-line.assistant ol,
+.chat-line.ai ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.chat-line.assistant li,
+.chat-line.ai li {
+  margin: 4px 0;
+}
+
+.chat-line.assistant hr,
+.chat-line.ai hr {
+  border: none;
+  border-top: 1px solid var(--mutedBorder, rgba(120, 110, 100, 0.15));
+  margin: 14px 0;
+}
+
+.chat-line.assistant strong,
+.chat-line.ai strong {
+  color: #2e4a38;
+}
+
+.chat-line.assistant em,
+.chat-line.ai em {
+  font-style: italic;
+  color: #5a7a65;
 }
 
 .muted {

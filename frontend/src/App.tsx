@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type SVGProps } from "react";
+import Markdown from "react-markdown";
 import {
   Bar,
   BarChart,
@@ -1357,9 +1358,14 @@ function App() {
             <h2>Ask Your Graph</h2>
             <div className="chat-log">
               {chatMessages.map((message, index) => (
-                <p key={`${message.role}-${index}`} className={`chat-line ${message.role}`}>
-                  <strong>{message.role === "user" ? "You" : "synapse"}:</strong> {message.content}
-                </p>
+                <div key={`${message.role}-${index}`} className={`chat-line ${message.role}`}>
+                  <strong>{message.role === "user" ? "You" : "synapse"}:</strong>
+                  {message.role === "user" ? (
+                    <span> {message.content}</span>
+                  ) : (
+                    <Markdown>{message.content}</Markdown>
+                  )}
+                </div>
               ))}
               {chatBusy ? <p className="muted">Assistant is thinking...</p> : null}
             </div>
