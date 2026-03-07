@@ -1,11 +1,9 @@
 """Seed the database with sample reflections through the full pipeline."""
 import os
 import glob
-from reflect.agent import build_reflection_graph
+from reflect.agent import build_reflection_graph, _init
 
 def main():
-    graph = build_reflection_graph()
-
     sample_dir = os.path.join(os.path.dirname(__file__), "data", "sample_reflections")
     files = sorted(glob.glob(os.path.join(sample_dir, "*.txt")))
 
@@ -20,6 +18,10 @@ def main():
         config = {"configurable": {"thread_id": f"seed-{i}"}}
 
         try:
+            # Reconnect each time to avoid websocket timeout
+            _init(force_reconnect=True)
+            graph = build_reflection_graph()
+
             result = graph.invoke(
                 {
                     "reflection_text": text,

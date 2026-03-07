@@ -47,9 +47,9 @@ _extraction_tools = None
 _chat_tools = None
 
 
-def _init():
+def _init(force_reconnect=False):
     global _conn, _vector_store, _extraction_tools, _chat_tools
-    if _conn is None:
+    if _conn is None or force_reconnect:
         _conn = get_connection()
         init_schema(_conn)
         embeddings = get_embeddings()
