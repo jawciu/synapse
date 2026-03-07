@@ -103,3 +103,13 @@ export function BodySignalIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function SparkleIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
+      <path d="M5 3l1 3.1L9 7l-3 .9L5 11l-1-3.1L1 7l3-.9z" opacity="0.6" />
+      <path d="M19 13l1 3.1 3 .9-3 .9-1 3.1-1-3.1-3-.9 3-.9z" opacity="0.6" />
+    </IconBase>
+  );
+}

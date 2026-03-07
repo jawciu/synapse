@@ -170,7 +170,8 @@ type ChatResponse = {
 type TotalSelection = "reflections" | "patterns" | "emotions" | "themes" | "people" | "bodySignals";
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
-type View = "reflect" | "ask";
+type View = "reflect" | "insights";
+type ReflectMode = "journal" | "ask";
 
 const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL ?? "http://localhost:8000";
 const TOTAL_LABELS: Record<TotalSelection, string> = {
@@ -319,6 +320,49 @@ function buildPromptDraft(prompt: string): string {
   ].join("\n");
 }
 
+const ASK_PROMPTS = [
+  "What patterns keep showing up in my reflections?",
+  "Which emotions come up most often for me?",
+  "How are my relationships connected to my patterns?",
+  "What does my body try to tell me when I'm stressed?",
+  "Which themes link to my strongest emotions?",
+  "What protective parts show up most in my writing?",
+  "How have my patterns changed over time?",
+  "What triggers my biggest emotional responses?",
+];
+
+const PROGRESS_MESSAGES = [
+  "Connecting...",
+  "Reading your reflection...",
+  "Analysing patterns...",
+  "Understanding emotions...",
+  "Creating connections...",
+  "Extracting themes...",
+  "Pulling insights...",
+  "Building your graph...",
+];
+
+function ReflectionProgress() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => Math.min(prev + 1, PROGRESS_MESSAGES.length - 1));
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="reflection-progress" key={index}>
+      <div className="reflection-progress-inner">
+        <FlowerIcon className="reflection-progress-icon" />
+        <span className="reflection-progress-text">{PROGRESS_MESSAGES[index]}</span>
+      </div>
+      <div className="reflection-progress-shimmer" />
+    </div>
+  );
+}
+
 function App() {
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem("synapse_token"));
   const [authEmail, setAuthEmail] = useState<string | null>(() => localStorage.getItem("synapse_email"));
@@ -341,10 +385,18 @@ function App() {
     authToken ? { Authorization: `Bearer ${authToken}` } : {};
 
   const [activeTab, setActiveTab] = useState<View>("reflect");
+  const [reflectMode, setReflectMode] = useState<ReflectMode>("journal");
+  const [askPromptIndex, setAskPromptIndex] = useState(0);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+
+  useEffect(() => {
+    if (!avatarOpen) return;
+    const close = () => setAvatarOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [avatarOpen]);
   const [dailyPrompt, setDailyPrompt] = useState("");
   const [reflectionText, setReflectionText] = useState("");
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [composerVariant, setComposerVariant] = useState<"prompt" | "fresh">("prompt");
   const [reflectionBusy, setReflectionBusy] = useState(false);
   const [reflectionError, setReflectionError] = useState("");
   const [lastReflection, setLastReflection] = useState<ReflectionPayload | null>(null);
@@ -535,7 +587,6 @@ function App() {
 
       setLastReflection(payload.result);
       setReflectionText("");
-      setComposerOpen(false);
       await fetchDashboard();
     } catch (error) {
       setReflectionError((error as Error).message || "Could not process reflection.");
@@ -561,13 +612,21 @@ function App() {
       content: chatInput.trim(),
     };
 
-    setChatMessages((previous) => [...previous, userMessage]);
+    setChatMessages((previous) => [
+      ...previous,
+      userMessage,
+      { role: "assistant" as const, content: "" },
+    ]);
     setChatInput("");
     setChatBusy(true);
 
-    // Add a placeholder assistant message that we'll stream into
-    const placeholderIndex = chatMessages.length + 1; // +1 for the user message we just added
-    setChatMessages((previous) => [...previous, { role: "assistant" as const, content: "" }]);
+    const updateLastAssistant = (content: string) => {
+      setChatMessages((previous) => {
+        const updated = [...previous];
+        updated[updated.length - 1] = { role: "assistant", content };
+        return updated;
+      });
+    };
 
     try {
       const thread = chatThread ?? `chat-${Date.now()}`;
@@ -611,12 +670,7 @@ function App() {
               setChatThread(event.content);
             } else if (event.type === "token") {
               accumulated += event.content;
-              const snapshot = accumulated;
-              setChatMessages((previous) => {
-                const updated = [...previous];
-                updated[placeholderIndex] = { role: "assistant", content: snapshot };
-                return updated;
-              });
+              updateLastAssistant(accumulated);
             }
           } catch {
             // skip malformed SSE lines
@@ -624,23 +678,11 @@ function App() {
         }
       }
 
-      // If nothing was streamed, show a fallback
       if (!accumulated) {
-        setChatMessages((previous) => {
-          const updated = [...previous];
-          updated[placeholderIndex] = { role: "assistant", content: "No response returned." };
-          return updated;
-        });
+        updateLastAssistant("No response returned.");
       }
     } catch (error) {
-      setChatMessages((previous) => {
-        const updated = [...previous];
-        updated[placeholderIndex] = {
-          role: "assistant",
-          content: (error as Error).message || "Something went wrong while chatting.",
-        };
-        return updated;
-      });
+      updateLastAssistant((error as Error).message || "Something went wrong while chatting.");
     } finally {
       setChatBusy(false);
     }
@@ -919,62 +961,225 @@ function App() {
   return (
     <div className="app-shell">
       <main className="content">
-        <header className="menubar">
-          <span className="menubar-lotus" aria-label="Synapse home">
-            <FlowerIcon className="menubar-lotus-icon" />
-          </span>
-          <nav className="menubar-stats" aria-label="Totals">
-            {totalCards.map((item) => {
-              const NavIcon: IconComponent = item.icon;
-              return (
+        <header className="topbar">
+          <div className="topbar-left">
+            <FlowerIcon className="topbar-logo-icon" />
+            <span className="topbar-logotype">synapse</span>
+          </div>
+          <nav className="topbar-nav" role="tablist">
+            <button
+              type="button"
+              className={`topbar-nav-link ${activeTab === "reflect" ? "active" : ""}`}
+              onClick={() => { setActiveTab("reflect"); setSelectedTotal(null); }}
+            >
+              reflect
+            </button>
+            <button
+              type="button"
+              className={`topbar-nav-link ${activeTab === "insights" ? "active" : ""}`}
+              onClick={() => { setActiveTab("insights"); setSelectedTotal(null); void fetchDashboard(); void fetchReflectionSources(); }}
+            >
+              insights
+            </button>
+          </nav>
+          <div className="topbar-right">
+            <button
+              type="button"
+              className="topbar-avatar"
+              onClick={(e) => { e.stopPropagation(); setAvatarOpen((prev) => !prev); }}
+              title={authEmail || "Account"}
+            >
+              {(authEmail || "?")[0].toUpperCase()}
+            </button>
+            {avatarOpen ? (
+              <div className="topbar-popover">
+                <p className="topbar-popover-email">{authEmail}</p>
                 <button
                   type="button"
-                  key={item.key}
-                  className={`menubar-stat ${selectedTotal === item.key ? "active" : ""}`}
-                  aria-pressed={selectedTotal === item.key}
-                  style={{ "--stat-color": item.color } as CSSProperties}
-                  onClick={() => {
-                    void onSelectTotal(item.key);
-                  }}
+                  className="topbar-popover-logout"
+                  onClick={() => { setAvatarOpen(false); handleLogout(); }}
                 >
-                  <span className="menubar-stat-emoji">
-                    <NavIcon className="menubar-stat-icon" />
-                  </span>
-                  <span className="menubar-stat-number">{item.value}</span>
-                  <span className="menubar-stat-label">{item.label}</span>
+                  Log out
                 </button>
-              );
-            })}
-          </nav>
-          <div className="menubar-time" aria-live="polite">
-            {liveTime.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
-          </div>
-          <div className="menubar-user">
-            {authEmail && <span className="menubar-email">{authEmail}</span>}
-            <button type="button" className="menubar-logout" onClick={handleLogout}>
-              log out
-            </button>
+              </div>
+            ) : null}
           </div>
         </header>
 
-        <header className="hero">
-          <p className="logo">synapse</p>
-        </header>
+        {activeTab === "insights" ? (
+          <>
+            {!selectedTotal ? (
+              <section className="insights-tiles">
+                {/* Reflections tile */}
+                <div
+                  className="insight-tile"
+                  style={{ "--tile-color": "#ff7ea8" } as CSSProperties}
+                  onClick={() => { void onSelectTotal("reflections"); }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="insight-tile-header">
+                    <JournalIcon className="insight-tile-icon" />
+                    <span className="insight-tile-number">{totals.reflections}</span>
+                    <span className="insight-tile-label">reflections</span>
+                  </div>
+                  <div className="insight-tile-preview">
+                    {reflectionSources.length > 0 ? (
+                      <p className="insight-tile-excerpt">{reflectionSources[0].text}</p>
+                    ) : (
+                      <p className="insight-tile-empty">No reflections yet</p>
+                    )}
+                  </div>
+                </div>
 
-        {selectedTotal ? (
-          <section className="card panel">
-            <div className="panel-head">
-              <h2>
-                {selectedTotal === "reflections" ? "All Reflections" : `${TOTAL_LABELS[selectedTotal]} source view`}
-              </h2>
-              <button type="button" onClick={() => setSelectedTotal(null)}>
-                close
-              </button>
-            </div>
+                {/* Patterns tile */}
+                <div
+                  className="insight-tile"
+                  style={{ "--tile-color": "#78a8ff" } as CSSProperties}
+                  onClick={() => { void onSelectTotal("patterns"); }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="insight-tile-header">
+                    <PatternIcon className="insight-tile-icon" />
+                    <span className="insight-tile-number">{totals.patterns}</span>
+                    <span className="insight-tile-label">patterns</span>
+                  </div>
+                  <div className="insight-tile-preview">
+                    {patternCategoryMix.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={patternCategoryMix} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="category" type="category" width={80} tick={{ fontSize: 11 }} stroke={THEME_COLORS.muted} tickFormatter={(v) => titleCase(String(v))} />
+                          <Bar dataKey="mentions" radius={4} fill="#78a8ff" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="insight-tile-empty">No patterns yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Emotions tile */}
+                <div
+                  className="insight-tile"
+                  style={{ "--tile-color": "#ff6f7d" } as CSSProperties}
+                  onClick={() => { void onSelectTotal("emotions"); }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="insight-tile-header">
+                    <EmotionIcon className="insight-tile-icon" />
+                    <span className="insight-tile-number">{totals.emotions}</span>
+                    <span className="insight-tile-label">emotions</span>
+                  </div>
+                  <div className="insight-tile-preview">
+                    {emotionList.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={emotionList.slice(0, 5)} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11 }} stroke={THEME_COLORS.muted} />
+                          <Bar dataKey="mentions" radius={4} fill="#ff6f7d" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="insight-tile-empty">No emotions yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Themes tile */}
+                <div
+                  className="insight-tile"
+                  style={{ "--tile-color": "#9f8bff" } as CSSProperties}
+                  onClick={() => { void onSelectTotal("themes"); }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="insight-tile-header">
+                    <ThemeIcon className="insight-tile-icon" />
+                    <span className="insight-tile-number">{totals.themes}</span>
+                    <span className="insight-tile-label">themes</span>
+                  </div>
+                  <div className="insight-tile-preview">
+                    {themeList.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={themeList.slice(0, 5)} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} stroke={THEME_COLORS.muted} />
+                          <Bar dataKey="mentions" radius={4} fill="#9f8bff" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="insight-tile-empty">No themes yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* People tile */}
+                <div
+                  className="insight-tile"
+                  style={{ "--tile-color": "#ff9f58" } as CSSProperties}
+                  onClick={() => { void onSelectTotal("people"); }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="insight-tile-header">
+                    <PeopleIcon className="insight-tile-icon" />
+                    <span className="insight-tile-number">{totals.people}</span>
+                    <span className="insight-tile-label">people</span>
+                  </div>
+                  <div className="insight-tile-preview">
+                    {dashboard?.people && dashboard.people.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={dashboard.people.slice(0, 5)} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11 }} stroke={THEME_COLORS.muted} />
+                          <Bar dataKey="occurrences" radius={4} fill="#ff9f58" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="insight-tile-empty">No people yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Body Signals tile */}
+                <div
+                  className="insight-tile"
+                  style={{ "--tile-color": "#35bda7" } as CSSProperties}
+                  onClick={() => { void onSelectTotal("bodySignals"); }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="insight-tile-header">
+                    <BodySignalIcon className="insight-tile-icon" />
+                    <span className="insight-tile-number">{totals.bodySignals}</span>
+                    <span className="insight-tile-label">body signals</span>
+                  </div>
+                  <div className="insight-tile-preview">
+                    {bodyLocationMix.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={bodyLocationMix.slice(0, 5)} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="location" type="category" width={80} tick={{ fontSize: 11 }} stroke={THEME_COLORS.muted} tickFormatter={(v) => titleCase(String(v))} />
+                          <Bar dataKey="occurrences" radius={4} fill="#35bda7" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="insight-tile-empty">No body signals yet</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="card panel">
+                <div className="panel-head">
+                  <h2>{selectedTotal === "reflections" ? "All Reflections" : titleCase(TOTAL_LABELS[selectedTotal])}</h2>
+                  <button type="button" onClick={() => setSelectedTotal(null)}>
+                    back
+                  </button>
+                </div>
 
             {selectedTotal === "reflections" ? (
               <>
@@ -1465,259 +1670,246 @@ function App() {
                 </section>
               </section>
             ) : null}
-          </section>
+              </section>
+            )}
+          </>
         ) : null}
 
-        <nav className="tabs" role="tablist" aria-label="Primary tabs">
-          <button
-            type="button"
-            className={activeTab === "reflect" ? "active" : ""}
-            onClick={() => setActiveTab("reflect")}
-          >
-            reflect
-          </button>
-          <button
-            type="button"
-            className={activeTab === "ask" ? "active" : ""}
-            onClick={() => setActiveTab("ask")}
-          >
-            talk
-          </button>
-        </nav>
-
         {activeTab === "reflect" ? (
-          <section className="card reflect-card">
-            <section className="prompt-row">
-              <div className="prompt-head">
-                <p className="prompt-label">Today&apos;s Prompt</p>
-                <button
-                  type="button"
-                  className="prompt-refresh"
-                  onClick={fetchPrompt}
-                  title="Refresh prompt"
-                  aria-label="Refresh daily prompt"
-                >
-                  <RefreshIcon className="prompt-refresh-icon" />
-                </button>
-              </div>
-              <p className="prompt-text">{dailyPrompt || "Loading prompt..."}</p>
-              <p className="prompt-cue">
-                Start with a concrete moment, then describe what you noticed in your body, your thoughts, and any
-                pattern that kept repeating.
-              </p>
-            </section>
-            <div className="toolbar reflect-actions">
+          <section className="reflect-section">
+            <p className="reflect-greeting">Map your mind. Understand yourself.</p>
+
+            <div className="reflect-mode-toggle">
               <button
                 type="button"
-                onClick={() => {
-                  setComposerVariant("prompt");
-                  setComposerOpen(true);
-                  setReflectionError("");
-                  setReflectionText(buildPromptDraft(dailyPrompt));
-                }}
+                className={`reflect-mode-btn ${reflectMode === "journal" ? "active" : ""}`}
+                onClick={() => setReflectMode("journal")}
               >
-                Use prompt
+                Journal
               </button>
               <button
                 type="button"
-                className="start-fresh-button"
-                onClick={() => {
-                  setComposerVariant("fresh");
-                  setComposerOpen(true);
-                  setReflectionError("");
-                  setReflectionText("");
-                }}
+                className={`reflect-mode-btn ${reflectMode === "ask" ? "active" : ""}`}
+                onClick={() => setReflectMode("ask")}
               >
-                Start fresh
+                Ask a question
               </button>
             </div>
-            {composerOpen ? (
+
+            <div className="reflect-prompt-display">
+              <p className="reflect-prompt-text">
+                {reflectMode === "journal" ? (dailyPrompt || "What felt most alive in your body today?") : ASK_PROMPTS[askPromptIndex]}
+              </p>
+              <button
+                type="button"
+                className="reflect-prompt-use"
+                onClick={() => {
+                  if (reflectMode === "journal") {
+                    setReflectionText(buildPromptDraft(dailyPrompt));
+                  } else {
+                    setChatInput(ASK_PROMPTS[askPromptIndex]);
+                  }
+                }}
+              >
+                Use this prompt
+              </button>
+              <button
+                type="button"
+                className="reflect-prompt-refresh"
+                onClick={() => {
+                  if (reflectMode === "journal") {
+                    void fetchPrompt();
+                  } else {
+                    setAskPromptIndex((prev) => (prev + 1) % ASK_PROMPTS.length);
+                  }
+                }}
+                title="Try another prompt"
+              >
+                <RefreshIcon className="reflect-prompt-refresh-icon" />
+              </button>
+            </div>
+
+            {reflectMode === "journal" ? (
               <>
-                {composerVariant === "fresh" ? (
-                  <input
-                    className="reflect-fresh-input"
-                    value={reflectionText}
-                    placeholder="ask about yourself"
-                    onChange={(event) => setReflectionText(event.target.value)}
-                    onKeyDown={onReflectionComposerKeyDown}
-                  />
-                ) : (
-                  <textarea
-                    className="reflect-textarea"
-                    rows={8}
-                    value={reflectionText}
-                    placeholder='Try writing in your own words: "What happened? What did I feel in my body? Where did I get reactive or calm?"'
-                    onChange={(event) => setReflectionText(event.target.value)}
-                    onKeyDown={onReflectionComposerKeyDown}
-                  />
-                )}
+                <textarea
+                  className="reflect-textarea"
+                  rows={6}
+                  value={reflectionText}
+                  placeholder='Write freely — what happened, what you felt in your body, any pattern you noticed...'
+                  onChange={(event) => setReflectionText(event.target.value)}
+                  onKeyDown={onReflectionComposerKeyDown}
+                />
                 <div className="toolbar reflect-submit-wrap">
                   <button
                     type="button"
-                    className={`reflect-submit-button ${composerVariant === "fresh" ? "reflect-submit-button-compact" : ""}`.trim()}
+                    className="reflect-submit-button"
                     onClick={submitReflection}
                     disabled={reflectionBusy || !reflectionText.trim()}
                   >
                     reflect
                   </button>
                 </div>
+                {reflectionBusy ? <ReflectionProgress /> : null}
+                {reflectionError ? <p className="error">{reflectionError}</p> : null}
+
+                {lastReflection ? (
+                  <>
+                    {hasEntityUpdates ? (
+                      <div className="result-grid">
+                        {extraction.patterns.length > 0 ? (
+                          <section className="panel">
+                            <h3>Patterns</h3>
+                            {extraction.patterns.map((pattern) => (
+                              <p key={pattern.name}>
+                                <strong>{pattern.name}</strong> <span className="meta">({pattern.category})</span> -{' '}
+                                {clampPercent(pattern.strength)}%
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+
+                        {extraction.emotions.length > 0 ? (
+                          <section className="panel">
+                            <h3>Emotions</h3>
+                            {extraction.emotions.map((emotion) => (
+                              <p key={emotion.name}>
+                                <strong>{emotion.name}</strong> <span className="meta">({emotion.valence})</span> -{' '}
+                                {clampPercent(emotion.intensity)}%
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+
+                        {extraction.themes.length > 0 ? (
+                          <section className="panel">
+                            <h3>Themes</h3>
+                            {extraction.themes.map((theme) => (
+                              <p key={theme.name}>
+                                <strong>{theme.name}</strong>
+                                <span className="muted"> - {theme.description}</span>
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+
+                        {extraction.ifs_parts.length > 0 ? (
+                          <section className="panel">
+                            <h3>IFS Parts</h3>
+                            {extraction.ifs_parts.map((part) => (
+                              <p key={part.name}>
+                                <strong>{part.name}</strong> <span className="meta">({roleName(part.role)})</span>
+                                <span className="muted"> - {part.description}</span>
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+
+                        {extraction.schemas.length > 0 ? (
+                          <section className="panel">
+                            <h3>Schemas</h3>
+                            {extraction.schemas.map((schema) => (
+                              <p key={schema.name}>
+                                <strong>{schema.name}</strong>
+                                <span className="meta">
+                                  ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
+                                </span>
+                                <span className="muted"> - {schema.description}</span>
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+
+                        {extraction.people.length > 0 ? (
+                          <section className="panel">
+                            <h3>People</h3>
+                            {extraction.people.map((person) => (
+                              <p key={person.name}>
+                                <strong>{person.name}</strong>
+                                <span className="meta"> ({person.relationship})</span>
+                                {person.description ? <span className="muted"> - {person.description}</span> : null}
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+
+                        {extraction.body_signals.length > 0 ? (
+                          <section className="panel">
+                            <h3>Body Signals</h3>
+                            {extraction.body_signals.map((signal) => (
+                              <p key={signal.name}>
+                                <strong>{signal.name}</strong>
+                                <span className="meta"> ({signal.location})</span>
+                              </p>
+                            ))}
+                          </section>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="result-grid">
+                      <section className="panel wide-panel">
+                        <h3>Insights</h3>
+                        <p>{insights || "--"}</p>
+                      </section>
+
+                      <section className="panel wide-panel">
+                        <h3>Follow-up Questions</h3>
+                        {followUps.length > 0 ? (
+                          <ul>
+                            {followUps.map((followUp) => (
+                              <li key={followUp}>{followUp}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="muted">No follow-ups yet.</p>
+                        )}
+                      </section>
+                    </div>
+                  </>
+                ) : null}
               </>
-            ) : null}
-            {reflectionError ? <p className="error">{reflectionError}</p> : null}
-
-            {lastReflection ? (
+            ) : (
               <>
-                {hasEntityUpdates ? (
-                  <div className="result-grid">
-                    {extraction.patterns.length > 0 ? (
-                      <section className="panel">
-                        <h3>Patterns</h3>
-                        {extraction.patterns.map((pattern) => (
-                          <p key={pattern.name}>
-                            <strong>{pattern.name}</strong> <span className="meta">({pattern.category})</span> -{' '}
-                            {clampPercent(pattern.strength)}%
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
-
-                    {extraction.emotions.length > 0 ? (
-                      <section className="panel">
-                        <h3>Emotions</h3>
-                        {extraction.emotions.map((emotion) => (
-                          <p key={emotion.name}>
-                            <strong>{emotion.name}</strong> <span className="meta">({emotion.valence})</span> -{' '}
-                            {clampPercent(emotion.intensity)}%
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
-
-                    {extraction.themes.length > 0 ? (
-                      <section className="panel">
-                        <h3>Themes</h3>
-                        {extraction.themes.map((theme) => (
-                          <p key={theme.name}>
-                            <strong>{theme.name}</strong>
-                            <span className="muted"> - {theme.description}</span>
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
-
-                    {extraction.ifs_parts.length > 0 ? (
-                      <section className="panel">
-                        <h3>IFS Parts</h3>
-                        {extraction.ifs_parts.map((part) => (
-                          <p key={part.name}>
-                            <strong>{part.name}</strong> <span className="meta">({roleName(part.role)})</span>
-                            <span className="muted"> - {part.description}</span>
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
-
-                    {extraction.schemas.length > 0 ? (
-                      <section className="panel">
-                        <h3>Schemas</h3>
-                        {extraction.schemas.map((schema) => (
-                          <p key={schema.name}>
-                            <strong>{schema.name}</strong>
-                            <span className="meta">
-                              ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
-                            </span>
-                            <span className="muted"> - {schema.description}</span>
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
-
-                    {extraction.people.length > 0 ? (
-                      <section className="panel">
-                        <h3>People</h3>
-                        {extraction.people.map((person) => (
-                          <p key={person.name}>
-                            <strong>{person.name}</strong>
-                            <span className="meta"> ({person.relationship})</span>
-                            {person.description ? <span className="muted"> - {person.description}</span> : null}
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
-
-                    {extraction.body_signals.length > 0 ? (
-                      <section className="panel">
-                        <h3>Body Signals</h3>
-                        {extraction.body_signals.map((signal) => (
-                          <p key={signal.name}>
-                            <strong>{signal.name}</strong>
-                            <span className="meta"> ({signal.location})</span>
-                          </p>
-                        ))}
-                      </section>
-                    ) : null}
+                {hasChatHistory ? (
+                  <div className="chat-log">
+                    {chatMessages.map((message, index) => (
+                      <div key={`${message.role}-${index}`} className={`chat-line ${message.role}`}>
+                        <strong>{message.role === "user" ? "You" : "synapse"}:</strong>
+                        {message.role === "user" ? (
+                          <span> {message.content}</span>
+                        ) : (
+                          <Markdown>{message.content}</Markdown>
+                        )}
+                      </div>
+                    ))}
+                    {chatBusy ? <p className="muted">Assistant is thinking...</p> : null}
                   </div>
                 ) : null}
-
-                <div className="result-grid">
-                  <section className="panel wide-panel">
-                    <h3>Insights</h3>
-                    <p>{insights || "--"}</p>
-                  </section>
-
-                  <section className="panel wide-panel">
-                    <h3>Follow-up Questions</h3>
-                    {followUps.length > 0 ? (
-                      <ul>
-                        {followUps.map((followUp) => (
-                          <li key={followUp}>{followUp}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="muted">No follow-ups yet.</p>
-                    )}
-                  </section>
+                <textarea
+                  className="reflect-textarea"
+                  rows={6}
+                  value={chatInput}
+                  placeholder="Ask anything about your patterns, emotions, or reflections..."
+                  onChange={(event) => setChatInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !chatBusy && chatInput.trim()) {
+                      event.preventDefault();
+                      void sendChat();
+                    }
+                  }}
+                />
+                <div className="toolbar reflect-submit-wrap">
+                  <button
+                    type="button"
+                    className="reflect-submit-button"
+                    onClick={sendChat}
+                    disabled={chatBusy || !chatInput.trim()}
+                  >
+                    ask
+                  </button>
                 </div>
               </>
-            ) : null}
-          </section>
-        ) : null}
-
-        {activeTab === "ask" ? (
-          <section className={`card chat-card ${hasChatHistory ? "chat-card-active" : "chat-card-empty"}`}>
-            <h2>Talk to Your Graph</h2>
-            {!hasChatHistory ? <p className="talk-empty-hint">Start with one question about yourself.</p> : null}
-            {hasChatHistory ? (
-              <div className="chat-log">
-                {chatMessages.map((message, index) => (
-                  <div key={`${message.role}-${index}`} className={`chat-line ${message.role}`}>
-                    <strong>{message.role === "user" ? "You" : "synapse"}:</strong>
-                    {message.role === "user" ? (
-                      <span> {message.content}</span>
-                    ) : (
-                      <Markdown>{message.content}</Markdown>
-                    )}
-                  </div>
-                ))}
-                {chatBusy ? <p className="muted">Assistant is thinking...</p> : null}
-              </div>
-            ) : null}
-            <div className={`chat-inputs ${hasChatHistory ? "" : "chat-inputs-center"}`.trim()}>
-              <input
-                className="chat-input-field"
-                value={chatInput}
-                onChange={(event) => setChatInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !chatBusy) {
-                    sendChat();
-                  }
-                }}
-                placeholder="ask about yourself"
-              />
-              <button type="button" onClick={sendChat} disabled={chatBusy || !chatInput.trim()}>
-                Send
-              </button>
-            </div>
+            )}
           </section>
         ) : null}
       </main>

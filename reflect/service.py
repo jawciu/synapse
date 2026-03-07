@@ -142,7 +142,14 @@ async def stream_chat(message: str, thread_id: str | None, user_id: str | None =
         if kind == "on_chat_model_stream":
             chunk = event["data"]["chunk"]
             token = chunk.content
-            if token and isinstance(token, str):
+            # token can be a string or a list of content blocks
+            if isinstance(token, list):
+                for block in token:
+                    if isinstance(block, str) and block:
+                        yield f"data: {json.dumps({'type': 'token', 'content': block})}\n\n"
+                    elif isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
+                        yield f"data: {json.dumps({'type': 'token', 'content': block['text']})}\n\n"
+            elif token and isinstance(token, str):
                 yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
