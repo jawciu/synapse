@@ -61,10 +61,12 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD occurrences ON pattern TYPE int DEFAULT 1""",
     """DEFINE FIELD first_seen ON pattern TYPE datetime DEFAULT time::now()""",
     """DEFINE FIELD last_seen ON pattern TYPE datetime DEFAULT time::now()""",
+    f"""DEFINE FIELD embedding ON pattern TYPE option<array<float>> ASSERT array::len($value) = {EMBEDDING_DIM} OR $value = NONE""",
 
     """DEFINE TABLE theme SCHEMAFULL""",
     """DEFINE FIELD name ON theme TYPE string""",
     """DEFINE FIELD description ON theme TYPE string""",
+    f"""DEFINE FIELD embedding ON theme TYPE option<array<float>> ASSERT array::len($value) = {EMBEDDING_DIM} OR $value = NONE""",
 
     """DEFINE TABLE emotion SCHEMAFULL""",
     """DEFINE FIELD name ON emotion TYPE string""",
@@ -93,6 +95,7 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD occurrences ON ifs_part TYPE int DEFAULT 1""",
     """DEFINE FIELD first_seen ON ifs_part TYPE datetime DEFAULT time::now()""",
     """DEFINE FIELD last_seen ON ifs_part TYPE datetime DEFAULT time::now()""",
+    f"""DEFINE FIELD embedding ON ifs_part TYPE option<array<float>> ASSERT array::len($value) = {EMBEDDING_DIM} OR $value = NONE""",
 
     # Schema patterns (Young's Schema Therapy)
     """DEFINE TABLE schema_pattern SCHEMAFULL""",
@@ -103,6 +106,7 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD occurrences ON schema_pattern TYPE int DEFAULT 1""",
     """DEFINE FIELD first_seen ON schema_pattern TYPE datetime DEFAULT time::now()""",
     """DEFINE FIELD last_seen ON schema_pattern TYPE datetime DEFAULT time::now()""",
+    f"""DEFINE FIELD embedding ON schema_pattern TYPE option<array<float>> ASSERT array::len($value) = {EMBEDDING_DIM} OR $value = NONE""",
 
     # People
     """DEFINE TABLE person SCHEMAFULL""",
@@ -112,6 +116,7 @@ SCHEMA_STATEMENTS = [
     """DEFINE FIELD occurrences ON person TYPE int DEFAULT 1""",
     """DEFINE FIELD first_seen ON person TYPE datetime DEFAULT time::now()""",
     """DEFINE FIELD last_seen ON person TYPE datetime DEFAULT time::now()""",
+    f"""DEFINE FIELD embedding ON person TYPE option<array<float>> ASSERT array::len($value) = {EMBEDDING_DIM} OR $value = NONE""",
 
     # Somatic markers
     """DEFINE TABLE body_signal SCHEMAFULL""",
@@ -128,6 +133,13 @@ SCHEMA_STATEMENTS = [
     """DEFINE TABLE reminds_of TYPE RELATION IN person OUT person""",
     """DEFINE FIELD description ON reminds_of TYPE string""",
     """DEFINE TABLE feels_in_body TYPE RELATION IN reflection OUT body_signal""",
+
+    # HNSW indexes for graph node embeddings
+    f"""DEFINE INDEX IF NOT EXISTS pattern_embedding_idx ON pattern FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
+    f"""DEFINE INDEX IF NOT EXISTS theme_embedding_idx ON theme FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
+    f"""DEFINE INDEX IF NOT EXISTS ifs_part_embedding_idx ON ifs_part FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
+    f"""DEFINE INDEX IF NOT EXISTS schema_pattern_embedding_idx ON schema_pattern FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
+    f"""DEFINE INDEX IF NOT EXISTS person_embedding_idx ON person FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
 ]
 
 

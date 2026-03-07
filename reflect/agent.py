@@ -10,6 +10,7 @@ from langsmith import traceable
 
 from .db import get_connection, get_embeddings, get_vector_store, init_schema
 from .graph_store import (
+    set_embeddings_model,
     make_graph_tools,
     store_reflection_record,
     upsert_pattern,
@@ -52,6 +53,7 @@ def _init():
         _conn = get_connection()
         init_schema(_conn)
         embeddings = get_embeddings()
+        set_embeddings_model(embeddings)
         _vector_store = get_vector_store(_conn, embeddings)
         _extraction_tools, _chat_tools = make_graph_tools(_conn, _vector_store)
 

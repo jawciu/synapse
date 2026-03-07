@@ -4,6 +4,20 @@ from langchain_core.tools import tool
 from langsmith import traceable
 from surrealdb import Surreal
 
+_embeddings_model = None
+
+
+def set_embeddings_model(model):
+    global _embeddings_model
+    _embeddings_model = model
+
+
+def _embed(text: str) -> list[float] | None:
+    """Embed text using the shared embeddings model. Returns None if not available."""
+    if _embeddings_model is None:
+        return None
+    return _embeddings_model.embed_query(text)
+
 
 def _slug(name: str) -> str:
     """Convert a name to a safe SurrealDB record ID slug."""
@@ -27,75 +41,82 @@ def store_reflection_record(conn: Surreal, text: str, daily_prompt: str | None =
 
 @traceable(run_type="tool", name="upsert_pattern")
 def upsert_pattern(conn: Surreal, name: str, category: str, description: str) -> str:
+    embedding = _embed(f"{name}: {description}")
     result = conn.query(
         """UPDATE pattern SET
             name = $name,
             category = $category,
             description = $description,
+            embedding = $embedding,
             occurrences += 1,
             last_seen = time::now()
         WHERE name = $name""",
-        {"name": name, "category": category, "description": description},
+        {"name": name, "category": category, "description": description, "embedding": embedding},
     )
     if not result:
         result = conn.query(
-            "CREATE pattern SET name = $name, category = $category, description = $description",
-            {"name": name, "category": category, "description": description},
+            "CREATE pattern SET name = $name, category = $category, description = $description, embedding = $embedding",
+            {"name": name, "category": category, "description": description, "embedding": embedding},
         )
     return str(result[0]["id"])
 
 
 @traceable(run_type="tool", name="upsert_theme")
 def upsert_theme(conn: Surreal, name: str, description: str) -> str:
+    embedding = _embed(f"{name}: {description}")
     result = conn.query(
-        "UPDATE theme SET name = $name, description = $description WHERE name = $name",
-        {"name": name, "description": description},
+        "UPDATE theme SET name = $name, description = $description, embedding = $embedding WHERE name = $name",
+        {"name": name, "description": description, "embedding": embedding},
     )
     if not result:
         result = conn.query(
-            "CREATE theme SET name = $name, description = $description",
-            {"name": name, "description": description},
+            "CREATE theme SET name = $name, description = $description, embedding = $embedding",
+            {"name": name, "description": description, "embedding": embedding},
         )
     return str(result[0]["id"])
 
 
 @traceable(run_type="tool", name="upsert_ifs_part")
 def upsert_ifs_part(conn: Surreal, name: str, role: str, description: str) -> str:
+    embedding = _embed(f"IFS {role}: {name} — {description}")
     result = conn.query(
         """UPDATE ifs_part SET
             name = $name,
             role = $role,
             description = $description,
+            embedding = $embedding,
             occurrences += 1,
             last_seen = time::now()
         WHERE name = $name""",
-        {"name": name, "role": role, "description": description},
+        {"name": name, "role": role, "description": description, "embedding": embedding},
     )
     if not result or isinstance(result, str):
         result = conn.query(
-            "CREATE ifs_part SET name = $name, role = $role, description = $description, occurrences = 1",
-            {"name": name, "role": role, "description": description},
+            "CREATE ifs_part SET name = $name, role = $role, description = $description, embedding = $embedding, occurrences = 1",
+            {"name": name, "role": role, "description": description, "embedding": embedding},
         )
     return str(result[0]["id"])
 
 
 @traceable(run_type="tool", name="upsert_schema")
 def upsert_schema(conn: Surreal, name: str, domain: str, coping_style: str, description: str) -> str:
+    embedding = _embed(f"Schema {name} ({domain}): {description}")
     result = conn.query(
         """UPDATE schema_pattern SET
             name = $name,
             domain = $domain,
             coping_style = $coping_style,
             description = $description,
+            embedding = $embedding,
             occurrences += 1,
             last_seen = time::now()
         WHERE name = $name""",
-        {"name": name, "domain": domain, "coping_style": coping_style, "description": description},
+        {"name": name, "domain": domain, "coping_style": coping_style, "description": description, "embedding": embedding},
     )
     if not result or isinstance(result, str):
         result = conn.query(
-            "CREATE schema_pattern SET name = $name, domain = $domain, coping_style = $coping_style, description = $description, occurrences = 1",
-            {"name": name, "domain": domain, "coping_style": coping_style, "description": description},
+            "CREATE schema_pattern SET name = $name, domain = $domain, coping_style = $coping_style, description = $description, embedding = $embedding, occurrences = 1",
+            {"name": name, "domain": domain, "coping_style": coping_style, "description": description, "embedding": embedding},
         )
     return str(result[0]["id"])
 
@@ -116,20 +137,22 @@ def upsert_emotion(conn: Surreal, name: str, valence: str, intensity: float) -> 
 
 @traceable(run_type="tool", name="upsert_person")
 def upsert_person(conn: Surreal, name: str, relationship: str, description: str) -> str:
+    embedding = _embed(f"{name} ({relationship}): {description}")
     result = conn.query(
         """UPDATE person SET
             name = $name,
             relationship = $relationship,
             description = $description,
+            embedding = $embedding,
             occurrences += 1,
             last_seen = time::now()
         WHERE name = $name""",
-        {"name": name, "relationship": relationship, "description": description},
+        {"name": name, "relationship": relationship, "description": description, "embedding": embedding},
     )
     if not result or isinstance(result, str):
         result = conn.query(
-            "CREATE person SET name = $name, relationship = $relationship, description = $description, occurrences = 1",
-            {"name": name, "relationship": relationship, "description": description},
+            "CREATE person SET name = $name, relationship = $relationship, description = $description, embedding = $embedding, occurrences = 1",
+            {"name": name, "relationship": relationship, "description": description, "embedding": embedding},
         )
     return str(result[0]["id"])
 
@@ -539,8 +562,48 @@ def make_graph_tools(conn: Surreal, vector_store):
             return "No body signals detected yet."
         return json.dumps(signals, default=str)
 
+    @tool
+    def hybrid_graph_search(query: str) -> str:
+        """Semantic search across ALL graph nodes — patterns, IFS parts, schemas, people, and themes. Finds the most relevant nodes by meaning, then follows graph edges to show connections. Use this when the user's question doesn't match exact node names, or for broad exploratory questions like 'why do I shut down?' or 'what's behind my anxiety?'"""
+        query_vec = _embed(query)
+        if not query_vec:
+            return "Embeddings not available."
+
+        results = {}
+        tables = [
+            ("pattern", "name, category, description, occurrences"),
+            ("ifs_part", "name, role, description, occurrences"),
+            ("schema_pattern", "name, domain, coping_style, description, occurrences"),
+            ("person", "name, relationship, description, occurrences"),
+            ("theme", "name, description"),
+        ]
+        for table, fields in tables:
+            hits = conn.query(
+                f"""SELECT {fields}, vector::distance::knn() AS dist
+                    FROM {table}
+                    WHERE embedding <|3,COSINE|> $vec
+                    ORDER BY dist""",
+                {"vec": query_vec},
+            )
+            if hits and not isinstance(hits, str):
+                results[table] = hits
+
+        # For the top pattern hit, also pull graph connections
+        if results.get("pattern"):
+            top_pattern = results["pattern"][0]["name"]
+            co = conn.query(
+                """SELECT out.name AS co_pattern, count AS times
+                   FROM co_occurs_with WHERE in.name = $name
+                   ORDER BY times DESC LIMIT 3""",
+                {"name": top_pattern},
+            )
+            results["top_pattern_co_occurs"] = co if co and not isinstance(co, str) else []
+
+        return json.dumps(results, default=str)
+
     extraction_tools = [retrieve_similar_reflections, get_existing_patterns]
     chat_tools = [
+        hybrid_graph_search,
         get_all_patterns_overview,
         get_all_emotions_overview,
         get_ifs_parts_overview,
