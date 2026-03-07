@@ -4,11 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -169,10 +164,9 @@ type ChatResponse = {
 type TotalSelection = "reflections" | "patterns" | "emotions" | "themes" | "people" | "bodySignals";
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
-type View = "reflect" | "patterns" | "ask";
+type View = "reflect" | "ask";
 
 const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL ?? "http://localhost:8000";
-const categories = ["cognitive", "emotional", "relational", "behavioral"] as const;
 const TOTAL_LABELS: Record<TotalSelection, string> = {
   reflections: "reflections",
   patterns: "patterns",
@@ -192,13 +186,6 @@ const THEME_COLORS = {
   neutral: "#f4c99f",
   bg1: "#f6f2e8",
   bg2: "#f0eadc",
-};
-
-const CATEGORY_PALETTE: Record<string, string> = {
-  cognitive: "#f2a3bb",
-  emotional: "#9dc7ec",
-  relational: "#c8b4f2",
-  behavioral: "#9ed4aa",
 };
 
 const CHART_TOOLTIP_STYLE = {
@@ -246,37 +233,8 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Number((value * 100).toFixed(0))));
 }
 
-function capitalizeWord(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 function roleName(value: string): string {
   return IF_ROLE_LABELS[value] ?? value;
-}
-
-function chartPct(values: EmotionEntry[]): { negative: number; neutral: number; positive: number } {
-  if (!values.length) {
-    return { negative: 0, neutral: 0, positive: 0 };
-  }
-
-  return values.reduce(
-    (acc, item) => {
-      const bucket = item.valence.toLowerCase();
-      if (bucket === "negative") {
-        acc.negative += item.intensity;
-      } else if (bucket === "positive") {
-        acc.positive += item.intensity;
-      } else {
-        acc.neutral += item.intensity;
-      }
-      return acc;
-    },
-    { negative: 0, neutral: 0, positive: 0 },
-  );
-}
-
-function safeSlice<T>(items: T[], size = 0): T[] {
-  return size > 0 ? items.slice(0, size) : items;
 }
 
 function formatSourceDate(value: string | null | undefined): string {
@@ -365,7 +323,6 @@ function App() {
   const [lastReflection, setLastReflection] = useState<ReflectionPayload | null>(null);
 
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
-  const [dashboardBusy, setDashboardBusy] = useState(false);
   const [liveTime, setLiveTime] = useState(() => new Date());
 
   const [chatInput, setChatInput] = useState("");
@@ -412,7 +369,6 @@ function App() {
   };
 
   const fetchDashboard = async () => {
-    setDashboardBusy(true);
     try {
       const res = await fetch(`${API_URL}/api/dashboard?limit=8`);
       const payload = (await res.json()) as DashboardPayload;
@@ -434,8 +390,6 @@ function App() {
           total_body_signals: 0,
         },
       });
-    } finally {
-      setDashboardBusy(false);
     }
   };
 
@@ -651,60 +605,6 @@ function App() {
 
   const insights = useMemo(() => lastReflection?.insights ?? "", [lastReflection]);
   const followUps = useMemo(() => lastReflection?.follow_up_questions ?? [], [lastReflection]);
-
-  const topPatterns = useMemo(() => {
-    if (!dashboard) {
-      return [] as Array<{ label: string; value: number; category: string }>;
-    }
-
-    return categories
-      .flatMap((category) => safeSlice(dashboard.patterns_by_category[category] ?? [], 0).map((entry) => ({
-        label: entry.name,
-        value: entry.occurrences || 0,
-        category,
-      })))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 12);
-  }, [dashboard]);
-
-  const emotionBars = useMemo(() => {
-    if (!dashboard) {
-      return [];
-    }
-
-    return dashboard.emotions.slice(0, 12).map((entry) => ({
-      ...entry,
-      value: clampPercent(entry.intensity),
-      color:
-        entry.valence.toLowerCase() === "negative"
-          ? THEME_COLORS.negative
-          : entry.valence.toLowerCase() === "positive"
-            ? THEME_COLORS.positive
-            : THEME_COLORS.neutral,
-    }));
-  }, [dashboard]);
-
-  const byCategory = useMemo(() => {
-    if (!dashboard) {
-      return {} as Record<string, PatternEntry[]>;
-    }
-
-    return categories.reduce(
-      (acc, category) => {
-        acc[category] = safeSlice(dashboard.patterns_by_category[category] ?? [], 6);
-        return acc;
-      },
-      {} as Record<string, PatternEntry[]>,
-    );
-  }, [dashboard]);
-
-  const valenceTotals = useMemo(() => chartPct(dashboard?.emotions || []), [dashboard]);
-
-  const pieSegments = [
-    { name: "negative", value: Number((valenceTotals.negative * 100).toFixed(1)) },
-    { name: "neutral", value: Number((valenceTotals.neutral * 100).toFixed(1)) },
-    { name: "positive", value: Number((valenceTotals.positive * 100).toFixed(1)) },
-  ];
 
   const totals = useMemo(() => {
     const summary = dashboard?.summary;
@@ -1012,13 +912,6 @@ function App() {
           </button>
           <button
             type="button"
-            className={activeTab === "patterns" ? "active" : ""}
-            onClick={() => setActiveTab("patterns")}
-          >
-            patterns
-          </button>
-          <button
-            type="button"
             className={activeTab === "ask" ? "active" : ""}
             onClick={() => setActiveTab("ask")}
           >
@@ -1218,138 +1111,6 @@ function App() {
                 </div>
               </>
             ) : null}
-          </section>
-        ) : null}
-
-        {activeTab === "patterns" ? (
-          <section className="panel-grid">
-            <section className="card span-two">
-              <div className="panel-head">
-                <h2>Top Patterns by Category</h2>
-                <button type="button" onClick={fetchDashboard} disabled={dashboardBusy}>
-                  {dashboardBusy ? "Refreshing..." : "Refresh"}
-                </button>
-              </div>
-
-              <div className="category-grid">
-                {categories.map((category) => {
-                  const rows = byCategory[category] ?? [];
-                  return (
-                    <article className="panel compact" key={category}>
-                      <h3>{capitalizeWord(category)}</h3>
-                      {rows.length === 0 ? (
-                        <p className="muted">None yet.</p>
-                      ) : (
-                        <ResponsiveContainer width="100%" height={170}>
-                          <BarChart data={rows} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
-                            <XAxis type="number" stroke={THEME_COLORS.muted} />
-                            <YAxis dataKey="name" type="category" width={120} stroke={THEME_COLORS.muted} />
-                            <Tooltip {...CHART_TOOLTIP_STYLE} />
-                            <Bar dataKey="occurrences" radius={6} fill={CATEGORY_PALETTE[category]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="card">
-              <h2>Pattern Mix</h2>
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={topPatterns} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
-                    <XAxis type="number" stroke={THEME_COLORS.muted} />
-                    <YAxis dataKey="label" type="category" width={160} stroke={THEME_COLORS.muted} />
-                    <Tooltip {...CHART_TOOLTIP_STYLE} />
-                    <Bar dataKey="value" radius={6}>
-                      {topPatterns.map((entry, index) => (
-                        <Cell key={`${entry.label}-${index}`} fill={CATEGORY_PALETTE[entry.category] ?? THEME_COLORS.primary} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            <section className="card">
-              <h2>Emotion Intensity</h2>
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={emotionBars}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
-                    <XAxis dataKey="name" stroke={THEME_COLORS.muted} />
-                    <YAxis stroke={THEME_COLORS.muted} />
-                    <Tooltip {...CHART_TOOLTIP_STYLE} />
-                    <Line type="monotone" dataKey="value" stroke={THEME_COLORS.primary} strokeWidth={3} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            <section className="card split">
-              <div>
-                <h2>Valence Mix</h2>
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={pieSegments} dataKey="value" nameKey="name" innerRadius={58} outerRadius={90} label>
-                      <Cell fill={THEME_COLORS.negative} />
-                      <Cell fill={THEME_COLORS.neutral} />
-                      <Cell fill={THEME_COLORS.positive} />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div>
-                <h2>IFS & Schemas</h2>
-                <h4>IFS</h4>
-                {safeSlice(dashboard?.ifs_parts ?? [], 8).map((part) => (
-                  <p key={part.name}>
-                    <strong>{part.name}</strong>
-                    <span className="meta"> ({part.role})</span> - {part.occurrences}
-                  </p>
-                ))}
-
-                <h4>Schema</h4>
-                {safeSlice(dashboard?.schemas ?? [], 8).map((schema) => (
-                  <p key={schema.name}>
-                    <strong>{schema.name}</strong>
-                    <span className="meta">
-                      ({SCHEMA_DOMAIN_LABELS[schema.domain] || schema.domain}, {COPING_LABELS[schema.coping_style] || schema.coping_style})
-                    </span>
-                    - {schema.occurrences}
-                  </p>
-                ))}
-              </div>
-            </section>
-
-            <section className="card">
-              <h2>People & Body Signals</h2>
-              <div className="split-list">
-                <div>
-                  <h3>People</h3>
-                  {safeSlice(dashboard?.people ?? [], 8).map((person) => (
-                    <p key={person.name}>
-                      <strong>{person.name}</strong>
-                      <span className="meta"> ({person.relationship})</span> - {person.occurrences}
-                    </p>
-                  ))}
-                </div>
-                <div>
-                  <h3>Body</h3>
-                  {safeSlice(dashboard?.body_signals ?? [], 8).map((signal) => (
-                    <p key={signal.name}>
-                      <strong>{signal.name}</strong>
-                      <span className="meta"> ({signal.location})</span> - {signal.occurrences}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            </section>
           </section>
         ) : null}
 

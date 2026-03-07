@@ -5,10 +5,17 @@ PORT_API := "8000"
 PORT_FRONTEND := "5173"
 API_URL := "http://localhost:8000"
 
+# Install frontend dependencies only when missing or stale.
+frontend-deps:
+  @if [ ! -d frontend/node_modules ] || [ ! -f frontend/node_modules/.package-lock.json ] || [ frontend/package-lock.json -nt frontend/node_modules/.package-lock.json ] || [ frontend/package.json -nt frontend/node_modules/.package-lock.json ]; then \
+    echo "Installing frontend dependencies..."; \
+    (cd frontend && npm install); \
+  fi
+
 # Install backend and frontend dependencies.
 sync:
   uv sync
-  (cd frontend && npm install)
+  just frontend-deps
 
 # Run the FastAPI backend.
 backend:
@@ -16,6 +23,7 @@ backend:
 
 # Run the React frontend.
 frontend:
+  just frontend-deps
   (cd frontend && VITE_API_URL={{API_URL}} npm run dev -- --host 0.0.0.0 --port {{PORT_FRONTEND}})
 
 # Run the Telegram bot.
@@ -26,6 +34,10 @@ telegram:
 # Press Ctrl+C to stop all processes.
 dev:
   mkdir -p .tmp; \
+  if [ ! -d frontend/node_modules ] || [ ! -f frontend/node_modules/.package-lock.json ] || [ frontend/package-lock.json -nt frontend/node_modules/.package-lock.json ] || [ frontend/package.json -nt frontend/node_modules/.package-lock.json ]; then \
+    echo "Installing frontend dependencies..."; \
+    (cd frontend && npm install); \
+  fi; \
   if [ -f .tmp/synapse-pids ]; then \
     . .tmp/synapse-pids; \
     kill ${API_PID:-} ${FRONTEND_PID:-} ${TELEGRAM_PID:-} >/dev/null 2>&1 || true; \
@@ -49,6 +61,10 @@ dev:
 # Press Ctrl+C to stop all processes.
 dev-all:
   mkdir -p .tmp; \
+  if [ ! -d frontend/node_modules ] || [ ! -f frontend/node_modules/.package-lock.json ] || [ frontend/package-lock.json -nt frontend/node_modules/.package-lock.json ] || [ frontend/package.json -nt frontend/node_modules/.package-lock.json ]; then \
+    echo "Installing frontend dependencies..."; \
+    (cd frontend && npm install); \
+  fi; \
   if [ -f .tmp/synapse-pids ]; then \
     . .tmp/synapse-pids; \
     kill ${API_PID:-} ${FRONTEND_PID:-} ${TELEGRAM_PID:-} >/dev/null 2>&1 || true; \

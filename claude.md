@@ -35,6 +35,7 @@ The repo is small but mostly complete as a demo:
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
+- The dedicated `patterns` tab has been removed from the primary tab bar; primary tabs are now `reflect` and `ask` while totals in the top menubar continue to expose source/drill-down panels.
 
 What is not present:
 
@@ -396,7 +397,7 @@ Current visual direction targets the TS UI:
 - lower-case `synapse` branding
 - bold gradient-backed interface with glass panels
 - modern chart primitives from Recharts
-- tabs labeled `reflect`, `patterns`, and `ask`
+- tabs labeled `reflect` and `ask`
 - a stronger color system tuned for interactive visuals
 
 ### Sidebar
@@ -425,25 +426,7 @@ Rendered sections:
 - insights
 - follow-up questions
 
-### Tab 2: My Patterns
-
-Purpose:
-
-- summarize what is already in SurrealDB
-- render a dashboard view over the accumulated graph via `/api/dashboard`
-
-Rendered sections:
-
-- top 5 patterns by category
-- IFS parts with colored bars
-- schema patterns with domain and coping labels
-- emotions split into negative / neutral / positive
-- people mentioned across reflections
-- body signals
-
-- Implementation note: dashboard rows still rely on server-side shared state set up by `reflect.agent._init()` through `reflect.service`.
-
-### Tab 3: Ask
+### Tab 2: Ask
 
 Purpose:
 
@@ -502,9 +485,9 @@ Use [`README.md`](/Users/ian/dev/synapse/README.md) for the canonical onboarding
 The recommended local runner is:
 
 - `just sync`
-- `just dev` (runs backend + frontend, and first kills any PIDs recorded in `.tmp/synapse-pids` from a previous run)
+- `just dev` (runs backend + frontend, auto-syncs missing/stale frontend deps, and first kills any PIDs recorded in `.tmp/synapse-pids` from a previous run)
 - `just telegram` (optional standalone bot runner, typically in a second terminal)
-- `just dev-all` (optional combined runner for backend + frontend + Telegram in one terminal)
+- `just dev-all` (optional combined runner for backend + frontend + Telegram in one terminal, with the same frontend dependency auto-sync)
 - `just stop` (to shut down whichever services were launched by `just dev` or `just dev-all`)
 
 ### Install dependencies

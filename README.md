@@ -46,7 +46,7 @@ just sync
 `just sync` now runs:
 
 - `uv sync` for Python dependencies.
-- `npm install` inside `frontend/` (run as one command so it doesn't fail from the repo root).
+- frontend dependency sync (`npm install`) when `frontend/node_modules` is missing or stale vs `frontend/package-lock.json`.
 
 3) Run core services
 
@@ -58,6 +58,7 @@ just dev
 
 - FastAPI on `http://localhost:8000`
 - Vite on `http://localhost:5173`
+- auto-installs frontend deps first if missing/stale
 - logs at `.tmp/synapse-api.log` and `.tmp/synapse-frontend.log`
 
 Run Telegram separately (recommended) in another terminal:
@@ -80,6 +81,8 @@ just frontend
 just telegram
 ```
 
+`just frontend` also auto-installs frontend deps first if needed.
+
 If you’re on a machine without `just` installed yet, retry step 1 first, then `just --list` and `just dev`.
 
 Stop all services started by `just dev` or `just dev-all`:
@@ -89,6 +92,7 @@ just stop
 ```
 
 If `just sync` still fails with `Could not read package.json` at `/Users/ian/dev/synapse/package.json`, you were likely using a pre-fix command; pull this patch then rerun `just sync`.
+If Vite reports `Failed to resolve import ...` for a package that exists in `frontend/package.json`, rerun `just dev` (or `just frontend`) and the dependency sync step will install missing modules.
 
 ## Endpoints
 
