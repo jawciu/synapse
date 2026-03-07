@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 from .chat_agent import build_chat_agent
-from .agent import _init
+from .agent import _init, build_reflection_graph
 from .db import get_connection
 
 load_dotenv()
@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 # ── Initialize shared resources once ──
 _init()
 chat_agent = build_chat_agent()
+reflection_graph = build_reflection_graph()
 _conn = get_connection()
+
+# Track users waiting to submit a reflection
+_pending_reflect: set[int] = set()
 
 
 # ── Handlers ──
@@ -31,7 +35,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Welcome to *ReflectGraph* 🌱\n\n"
         "I'm your personal reflection coach. I track your emotional patterns over time using a knowledge graph.\n\n"
         "Just send me anything that's on your mind and I'll help you understand your patterns.\n\n"
-        "You can also ask things like:\n"
+        "*Commands:*\n"
+        "• /reflect — submit a journal entry to analyze & save to your graph\n"
+        "• /cancel — go back to chat mode\n\n"
+        "*Or just ask me anything:*\n"
         "• _What patterns do I repeat most?_\n"
         "• _Why do I always feel anxious?_\n"
         "• _What does my inner critic do?_",
@@ -39,12 +46,64 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def reflect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ask the user to send their reflection text."""
+    user_id = update.effective_user.id
+    _pending_reflect.add(user_id)
+    await update.message.reply_text(
+        "What's on your mind? Send me your reflection and I'll analyze it, extract patterns, and save it to your graph.\n\n"
+        "_Send /cancel to go back to chat mode._",
+        parse_mode="Markdown",
+    )
+
+
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    _pending_reflect.discard(user_id)
+    await update.message.reply_text("Cancelled. Back to chat mode — ask me anything about your patterns.")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.effective_user.id)
+    user_id = update.effective_user.id
     text = update.message.text
 
     await update.message.chat.send_action("typing")
 
+    # If user is in reflect mode, run the full pipeline
+    if user_id in _pending_reflect:
+        _pending_reflect.discard(user_id)
+        await update.message.reply_text("Analyzing your reflection... this takes 20-30 seconds.")
+        await update.message.chat.send_action("typing")
+
+        count = context.user_data.get("reflection_count", 0) + 1
+        context.user_data["reflection_count"] = count
+        config = {"configurable": {"thread_id": f"tg-reflect-{user_id}-{count}"}}
+
+        result = reflection_graph.invoke(
+            {"reflection_text": text, "daily_prompt": None, "messages": []},
+            config=config,
+        )
+
+        extracted = result.get("extracted", {})
+        patterns = [p["name"] for p in extracted.get("patterns", [])]
+        emotions = [e["name"] for e in extracted.get("emotions", [])]
+        insights = result.get("insights", "")
+        questions = result.get("follow_up_questions", [])
+
+        response = ""
+        if patterns:
+            response += f"*Patterns:* {', '.join(patterns)}\n"
+        if emotions:
+            response += f"*Emotions:* {', '.join(emotions)}\n"
+        if insights:
+            response += f"\n*Insights:*\n{insights}\n"
+        if questions:
+            response += "\n*Reflect on:*\n" + "\n".join(f"• {q}" for q in questions)
+
+        await update.message.reply_text(response or "Reflection saved!", parse_mode="Markdown")
+        return
+
+    # Otherwise: chat mode
     config = {"configurable": {"thread_id": f"tg-{user_id}"}}
     result = chat_agent.invoke(
         {"messages": [HumanMessage(content=text)]},
@@ -118,6 +177,8 @@ def main() -> None:
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start_with_nudge))
+    app.add_handler(CommandHandler("reflect", reflect_command))
+    app.add_handler(CommandHandler("cancel", cancel_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Bot is running...")
