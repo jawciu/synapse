@@ -16,4 +16,6 @@ dependencies = [
     "surrealdb>=1.0.8",
     "uvicorn>=0.37.0",
     "langchain-anthropic>=1.2.0",
+    "bcrypt>=4.0.0",
+    "pyjwt>=2.8.0",
 ]

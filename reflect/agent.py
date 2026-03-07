@@ -33,6 +33,7 @@ class ReflectionState(TypedDict):
     reflection_text: str
     daily_prompt: str | None
     source: str | None
+    user_id: str | None
     reflection_id: str
     extracted: dict
     graph_connections: list
@@ -44,24 +45,21 @@ class ReflectionState(TypedDict):
 # ── Shared resources (initialized once) ──
 _conn = None
 _vector_store = None
-_extraction_tools = None
-_chat_tools = None
 
 
 def _init(force_reconnect=False):
-    global _conn, _vector_store, _extraction_tools, _chat_tools
+    global _conn, _vector_store
     if _conn is None or force_reconnect:
         _conn = get_connection()
         init_schema(_conn)
         embeddings = get_embeddings()
         set_embeddings_model(embeddings)
         _vector_store = get_vector_store(_conn, embeddings)
-        _extraction_tools, _chat_tools = make_graph_tools(_conn, _vector_store)
 
 
-def get_chat_tools():
+def get_conn_and_vector_store():
     _init()
-    return _chat_tools
+    return _conn, _vector_store
 
 
 # ── Node functions ──
@@ -72,12 +70,11 @@ def store_reflection(state: ReflectionState) -> dict:
     text = state["reflection_text"]
     prompt = state.get("daily_prompt")
     source = state.get("source") or "app"
+    user_id = state.get("user_id")
 
-    # Store as graph record
-    rid = store_reflection_record(_conn, text, prompt, source)
+    rid = store_reflection_record(_conn, text, prompt, source, user_id=user_id)
 
-    # Also add to vector store for semantic search
-    doc = Document(page_content=text, metadata={"id": rid, "daily_prompt": prompt or "", "source": source})
+    doc = Document(page_content=text, metadata={"id": rid, "daily_prompt": prompt or "", "source": source, "user_id": user_id or ""})
     _vector_store.add_documents(documents=[doc], ids=[rid.replace(":", "_")])
 
     return {"reflection_id": rid}
@@ -86,7 +83,9 @@ def store_reflection(state: ReflectionState) -> dict:
 @traceable(run_type="chain", name="extract_patterns")
 def extract_patterns(state: ReflectionState) -> dict:
     _init()
-    extracted = extract_with_agent(state["reflection_text"], _extraction_tools)
+    user_id = state.get("user_id")
+    extraction_tools, _ = make_graph_tools(_conn, _vector_store, user_id=user_id)
+    extracted = extract_with_agent(state["reflection_text"], extraction_tools)
     return {"extracted": extracted}
 
 
@@ -95,40 +94,41 @@ def update_graph(state: ReflectionState) -> dict:
     _init()
     extracted = state["extracted"]
     rid = state["reflection_id"]
+    user_id = state.get("user_id")
 
     pattern_ids = []
     for p in extracted.get("patterns", []):
-        pid = upsert_pattern(_conn, p["name"], p["category"], p["description"])
+        pid = upsert_pattern(_conn, p["name"], p["category"], p["description"], user_id=user_id)
         pattern_ids.append(pid)
 
     theme_ids = []
     for t in extracted.get("themes", []):
-        tid = upsert_theme(_conn, t["name"], t["description"])
+        tid = upsert_theme(_conn, t["name"], t["description"], user_id=user_id)
         theme_ids.append(tid)
 
     emotion_ids = []
     for e in extracted.get("emotions", []):
-        eid = upsert_emotion(_conn, e["name"], e["valence"], e["intensity"])
+        eid = upsert_emotion(_conn, e["name"], e["valence"], e["intensity"], user_id=user_id)
         emotion_ids.append(eid)
 
     ifs_part_ids = []
     for part in extracted.get("ifs_parts", []):
-        pid = upsert_ifs_part(_conn, part["name"], part["role"], part["description"])
+        pid = upsert_ifs_part(_conn, part["name"], part["role"], part["description"], user_id=user_id)
         ifs_part_ids.append(pid)
 
     schema_ids = []
     for s in extracted.get("schemas", []):
-        sid = upsert_schema(_conn, s["name"], s["domain"], s.get("coping_style", "none"), s["description"])
+        sid = upsert_schema(_conn, s["name"], s["domain"], s.get("coping_style", "none"), s["description"], user_id=user_id)
         schema_ids.append(sid)
 
     person_ids = []
     for p in extracted.get("people", []):
-        pid = upsert_person(_conn, p["name"], p["relationship"], p.get("description", ""))
+        pid = upsert_person(_conn, p["name"], p["relationship"], p.get("description", ""), user_id=user_id)
         person_ids.append(pid)
 
     body_signal_ids = []
     for b in extracted.get("body_signals", []):
-        bid = upsert_body_signal(_conn, b["name"], b.get("location", "other"))
+        bid = upsert_body_signal(_conn, b["name"], b.get("location", "other"), user_id=user_id)
         body_signal_ids.append(bid)
 
     create_edges(_conn, rid, pattern_ids, emotion_ids, theme_ids, extracted, ifs_part_ids, schema_ids, person_ids, body_signal_ids)
@@ -138,17 +138,18 @@ def update_graph(state: ReflectionState) -> dict:
 @traceable(run_type="chain", name="query_graph")
 def query_graph(state: ReflectionState) -> dict:
     _init()
+    user_id = state.get("user_id")
     connections = []
 
-    co = query_co_occurrences(_conn)
+    co = query_co_occurrences(_conn, user_id=user_id)
     if co:
         connections.append({"type": "co_occurrences", "data": co})
 
-    neg = query_negative_emotion_triggers(_conn)
+    neg = query_negative_emotion_triggers(_conn, user_id=user_id)
     if neg:
         connections.append({"type": "negative_triggers", "data": neg})
 
-    central = query_central_patterns(_conn)
+    central = query_central_patterns(_conn, user_id=user_id)
     if central:
         connections.append({"type": "central_patterns", "data": central})
 
