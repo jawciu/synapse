@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from surrealdb import Surreal, RecordID
-from datetime import datetime
+from datetime import UTC, datetime
 import random
 
 load_dotenv()
@@ -17,7 +17,7 @@ with Surreal(url=os.getenv("SURREAL_URL")) as db:
         "status": "in_progress",
         "priority": "high",
         "tags": ["typescript", "react", "database"],
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(UTC),
     })
 
     # Select a specific record
