@@ -45,10 +45,22 @@ Synapse is built to solve that:
 
 Synapse is grounded in established reflection methodologies, not generic motivational output:
 
-- **CBT (Cognitive Behavioral Therapy):** captures recurring thinking distortions and behavioral loops.
-- **DBT (Dialectical Behavior Therapy):** tracks emotional intensity/valence and trigger patterns.
-- **IFS (Internal Family Systems):** identifies internal parts (`manager`, `firefighter`, `exile`) and when they activate.
-- **Schema Therapy:** maps deeper repeating schemas (for example abandonment or unrelenting standards) plus coping style (`surrender`, `avoidance`, `overcompensation`).
+- **CBT (Cognitive Behavioral Therapy):**
+  - Looks for thought patterns such as catastrophizing, all-or-nothing thinking, and mind-reading.
+  - Stores these as recurring `pattern` nodes and links them to themes/people that co-occur.
+  - Helps users spot repeat loops and test alternative interpretations.
+- **DBT (Dialectical Behavior Therapy):**
+  - Captures emotional valence/intensity plus trigger context and body-state cues.
+  - Stores emotional patterns in `emotion` + `triggered_by`/`expresses` relationships.
+  - Helps users identify when dysregulation starts and what tends to escalate or reduce it.
+- **IFS (Internal Family Systems):**
+  - Detects internal parts and role dynamics (`manager`, `firefighter`, `exile`).
+  - Persists these in `ifs_part` nodes and activation links from reflections.
+  - Helps users separate protective strategies from underlying vulnerable states.
+- **Schema Therapy:**
+  - Tracks deeper enduring schemas (for example abandonment, self-sacrifice, unrelenting standards).
+  - Stores schema domain and coping style (`surrender`, `avoidance`, `overcompensation`) in `schema_pattern` nodes.
+  - Helps users connect present reactions to long-running life patterns.
 
 How this links to the system end-to-end:
 
@@ -57,7 +69,7 @@ How this links to the system end-to-end:
 3. LangGraph queries historical graph context before synthesis, so insights reflect trajectory over time.
 4. The chat agent uses graph tools to answer from concrete history: patterns, people, triggers, body signals, and schema/IFS context.
 
-This is the core product value: clinically informed reflection frameworks translated into persistent machine-readable memory, then used by agents for more reliable and useful guidance.
+This is the core product value: clinically informed reflection frameworks translated into persistent machine-readable memory, then used by agents to deliver clearer, more consistent, and more context-aware guidance over time.
 
 Important boundary: Synapse is a reflection tool and pattern coach, not a replacement for therapy or medical care.
 
