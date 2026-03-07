@@ -6,6 +6,7 @@ from openai import OpenAI
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from telegram import Update
+from telegram.error import Conflict
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 from .chat_agent import build_chat_agent
@@ -28,6 +29,7 @@ _conn = get_connection()
 
 # Track users waiting to submit a reflection
 _pending_reflect: set[int] = set()
+_stopping_for_conflict = False
 
 
 # ── Handlers ──
@@ -230,6 +232,22 @@ async def start_with_nudge(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await register_nudge(update, context)
 
 
+async def handle_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global _stopping_for_conflict
+    if isinstance(context.error, Conflict):
+        if _stopping_for_conflict:
+            return
+        _stopping_for_conflict = True
+        logger.error(
+            "Telegram polling conflict detected (another bot instance is running). "
+            "Stopping this process to avoid repeated 409 errors."
+        )
+        context.application.stop_running()
+        return
+
+    logger.exception("Unhandled Telegram bot error", exc_info=context.error)
+
+
 # ── Entry point ──
 
 def main() -> None:
@@ -241,6 +259,7 @@ def main() -> None:
     app.add_handler(CommandHandler("cancel", cancel_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_error_handler(handle_error)
 
     logger.info("Bot is running...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

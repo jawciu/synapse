@@ -101,6 +101,7 @@ If `just sync` still fails with `Could not read package.json` at `/Users/ian/dev
 Add these to `.env` before running:
 
 - `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY` (required for reflection extraction)
 - `SURREAL_URL`
 - `SURREAL_NS`
 - `SURREAL_DB`

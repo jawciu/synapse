@@ -28,12 +28,13 @@ The repo is small but mostly complete as a demo:
 - LangGraph pipeline for ingestion and analysis.
 - LangGraph ReAct chat agent for querying stored graph data.
 - SurrealDB used both as graph store and vector store backend.
-- OpenAI used for embeddings and LLM steps.
+- OpenAI used for embeddings, chat, and synthesis LLM steps; Anthropic is used for extraction.
 - LangSmith decorators are present on the main pipeline and graph functions.
 - Seed data exists and is intentionally written to create cross-entry childhood and relationship patterns.
 - Reflect UI behavior: reflection editor is hidden until the user clicks `Use prompt` or `Start fresh`; `Use prompt` inserts a structured draft template with placeholders; the primary submit action is a wide centered `reflect` button.
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
+- Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
 
 What is not present:
 
@@ -49,9 +50,12 @@ What is not present:
 - TypeScript React frontend (Vite) in `frontend/` for the primary product UI
 - LangGraph / LangChain for orchestration and agents
 - OpenAI:
-  - `gpt-4o` for extraction-adjacent generation, insights, follow-ups, and chat
+  - `gpt-5-mini` for insights and follow-up generation
+  - `gpt-4o` for chat
   - `gpt-4o-mini` only in [main.py](/Users/ian/dev/synapse/main.py), which is just a scratch smoke test
   - `text-embedding-3-small` for embeddings
+- Anthropic:
+  - `claude-sonnet-4-6` for extraction (`ANTHROPIC_API_KEY` required)
 - SurrealDB for:
   - structured graph tables and relations
   - vector search over reflection documents
@@ -75,7 +79,7 @@ What is not present:
 - [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py): 6-node LangGraph reflection pipeline
 - [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py): graph Q&A ReAct agent
 - [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py): extraction/chat/insight/follow-up prompts plus daily prompts
-- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes, plus `/api/reflections` for reflection source retrieval with source metadata (`app` / `telegram_text` / `voice`)
+- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes, `/api/people` for relationship drill-down analytics, plus `/api/reflections` for reflection source retrieval with source metadata (`app` / `telegram_text` / `voice`)
 - [frontend/](/Users/ian/dev/synapse/frontend): Vite + TypeScript React UI scaffold
 - [frontend/src/icons.tsx](/Users/ian/dev/synapse/frontend/src/icons.tsx): local OSS-style SVG icon components used by the navbar and prompt refresh action
 
@@ -158,6 +162,11 @@ The output is expected to be JSON only with:
 - `body_signals`
 
 If JSON parsing fails, extraction falls back to an empty structure instead of crashing.
+
+Provider/runtime behavior:
+
+- extraction is Anthropic-only and requires `ANTHROPIC_API_KEY`
+- if extraction model invocation fails, extraction returns an empty structure so `/api/reflection` does not fail at extraction time
 
 ### Graph update flow
 
@@ -493,7 +502,7 @@ Use [`README.md`](/Users/ian/dev/synapse/README.md) for the canonical onboarding
 The recommended local runner is:
 
 - `just sync`
-- `just dev` (runs backend + frontend + Telegram bot)
+- `just dev` (runs backend + frontend + Telegram bot, and first kills any PIDs recorded in `.tmp/synapse-pids` from a previous run)
 - `just stop` (to shut down all three services)
 - `just telegram` (optional standalone bot runner)
 
@@ -528,6 +537,7 @@ just telegram
 ```
 
 This loads `.env` via `python-dotenv`; `TELEGRAM_BOT_TOKEN` must be set.
+If Telegram returns a polling `409 Conflict` (another instance already polling that token), the bot now logs a single conflict message and exits cleanly instead of repeatedly dumping stack traces.
 
 ### Seed the demo graph
 

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from reflect.service import (
     daily_prompt,
     get_dashboard_payload,
+    get_people_overview_payload,
     get_reflections,
     run_chat,
     run_reflection_pipeline,
@@ -136,6 +137,14 @@ def dashboard(limit: int = Query(default=8, ge=1, le=20)) -> dict[str, Any]:
         return payload
     except Exception as exc:  # pragma: no cover - surfaced through API transport
         raise HTTPException(status_code=500, detail=f"Failed to load dashboard: {exc}") from exc
+
+
+@app.get("/api/people")
+def people_overview() -> dict[str, Any]:
+    try:
+        return get_people_overview_payload()
+    except Exception as exc:  # pragma: no cover - surfaced through API transport
+        raise HTTPException(status_code=500, detail=f"Failed to load people overview: {exc}") from exc
 
 
 @app.get("/api/reflections", response_model=list[ReflectionSource])

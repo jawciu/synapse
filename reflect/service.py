@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections import defaultdict
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
@@ -227,6 +228,154 @@ def get_dashboard_payload() -> dict[str, Any]:
             "total_body_signals": total_body_signals,
             "top_patterns": pattern_rows[:5],
             "top_co_occurrences": co_occurrences,
+        },
+    }
+
+
+def get_people_overview_payload() -> dict[str, Any]:
+    _init()
+    from .agent import _conn
+
+    if _conn is None:
+        return {
+            "people": [],
+            "relationship_mix": [],
+            "top_trigger_patterns": [],
+            "summary": {
+                "total_people": 0,
+                "total_mentions": 0,
+                "unique_relationships": 0,
+                "top_person": None,
+                "top_person_mentions": 0,
+                "top_relationship": None,
+                "key_action": "Add a few reflections first so relationship insights can be generated.",
+            },
+        }
+
+    people_rows = _conn.query(
+        "SELECT id, name, relationship, description, occurrences, first_seen, last_seen FROM person ORDER BY occurrences DESC"
+    )
+    if not people_rows or isinstance(people_rows, str):
+        people_rows = []
+
+    relationship_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"people_count": 0, "mentions": 0})
+    trigger_pattern_counts: dict[str, dict[str, Any]] = {}
+    people_payload: list[dict[str, Any]] = []
+    total_mentions = 0
+
+    for row in people_rows:
+        if not isinstance(row, dict):
+            continue
+
+        person_id = row.get("id")
+        person_name = str(row.get("name") or "").strip()
+        if not person_name:
+            continue
+        relationship = str(row.get("relationship") or "other").strip().lower() or "other"
+        description = str(row.get("description") or "").strip()
+        occurrences = int(row.get("occurrences") or 0)
+        first_seen = row.get("first_seen")
+        last_seen = row.get("last_seen")
+
+        relationship_counts[relationship]["people_count"] += 1
+        relationship_counts[relationship]["mentions"] += occurrences
+        total_mentions += occurrences
+
+        trigger_rows = []
+        if person_id:
+            trigger_rows = _conn.query(
+                "SELECT out.name AS name, out.category AS category FROM triggers_pattern WHERE in = $person_id",
+                {"person_id": person_id},
+            )
+            if not trigger_rows or isinstance(trigger_rows, str):
+                trigger_rows = []
+
+        trigger_map: dict[str, dict[str, Any]] = {}
+        for trigger in trigger_rows:
+            if not isinstance(trigger, dict):
+                continue
+            trigger_name = str(trigger.get("name") or "").strip()
+            if not trigger_name:
+                continue
+            trigger_category = str(trigger.get("category") or "unknown").strip().lower() or "unknown"
+            trigger_key = trigger_name.lower()
+
+            if trigger_key not in trigger_map:
+                trigger_map[trigger_key] = {
+                    "name": trigger_name,
+                    "category": trigger_category,
+                    "links": 0,
+                }
+            trigger_map[trigger_key]["links"] += 1
+
+            if trigger_key not in trigger_pattern_counts:
+                trigger_pattern_counts[trigger_key] = {
+                    "name": trigger_name,
+                    "category": trigger_category,
+                    "links": 0,
+                }
+            trigger_pattern_counts[trigger_key]["links"] += 1
+
+        triggered_patterns = sorted(trigger_map.values(), key=lambda item: (-item["links"], item["name"].lower()))
+
+        people_payload.append(
+            {
+                "id": str(person_id) if person_id is not None else person_name.lower().replace(" ", "-"),
+                "name": person_name,
+                "relationship": relationship,
+                "description": description,
+                "occurrences": occurrences,
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+                "triggered_patterns": triggered_patterns,
+            }
+        )
+
+    people_payload.sort(key=lambda item: (-item["occurrences"], item["name"].lower()))
+    relationship_mix = sorted(
+        (
+            {
+                "relationship": relationship,
+                "people_count": counts["people_count"],
+                "mentions": counts["mentions"],
+            }
+            for relationship, counts in relationship_counts.items()
+        ),
+        key=lambda item: (-item["mentions"], item["relationship"]),
+    )
+    top_trigger_patterns = sorted(
+        trigger_pattern_counts.values(),
+        key=lambda item: (-item["links"], item["name"].lower()),
+    )[:12]
+
+    top_person = people_payload[0] if people_payload else None
+    top_relationship = relationship_mix[0]["relationship"] if relationship_mix else None
+
+    if top_person and top_person["triggered_patterns"]:
+        dominant_pattern = top_person["triggered_patterns"][0]["name"]
+        key_action = (
+            f"Run one small boundary experiment with {top_person['name']} this week, "
+            f"then journal whether '{dominant_pattern}' felt weaker or stronger."
+        )
+    elif top_person:
+        key_action = (
+            f"Track your next interaction with {top_person['name']} and note the first emotion and body signal that appears."
+        )
+    else:
+        key_action = "Add reflections that mention people so relationship actions can be surfaced."
+
+    return {
+        "people": people_payload,
+        "relationship_mix": relationship_mix,
+        "top_trigger_patterns": top_trigger_patterns,
+        "summary": {
+            "total_people": len(people_payload),
+            "total_mentions": total_mentions,
+            "unique_relationships": len(relationship_mix),
+            "top_person": top_person["name"] if top_person else None,
+            "top_person_mentions": top_person["occurrences"] if top_person else 0,
+            "top_relationship": top_relationship,
+            "key_action": key_action,
         },
     }
 

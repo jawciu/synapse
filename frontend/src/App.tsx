@@ -64,6 +64,42 @@ type PersonEntry = {
   occurrences: number;
 };
 
+type TriggerPatternEntry = {
+  name: string;
+  category: string;
+  links: number;
+};
+
+type PersonOverviewEntry = PersonEntry & {
+  id: string;
+  first_seen?: string | null;
+  last_seen?: string | null;
+  triggered_patterns: TriggerPatternEntry[];
+};
+
+type RelationshipMixEntry = {
+  relationship: string;
+  people_count: number;
+  mentions: number;
+};
+
+type PeopleOverviewSummary = {
+  total_people: number;
+  total_mentions: number;
+  unique_relationships: number;
+  top_person: string | null;
+  top_person_mentions: number;
+  top_relationship: string | null;
+  key_action: string;
+};
+
+type PeopleOverviewPayload = {
+  people: PersonOverviewEntry[];
+  relationship_mix: RelationshipMixEntry[];
+  top_trigger_patterns: TriggerPatternEntry[];
+  summary: PeopleOverviewSummary;
+};
+
 type BodySignal = {
   name: string;
   location: string;
@@ -261,6 +297,16 @@ function formatSourceDate(value: string | null | undefined): string {
   });
 }
 
+function titleCase(value: string): string {
+  if (!value) {
+    return value;
+  }
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function formatReflectionSource(value: string | null | undefined): string {
   const source = (value || "").trim().toLowerCase();
   if (source === "telegram_text" || source === "telegram text" || source === "telegram") {
@@ -329,6 +375,9 @@ function App() {
   const [reflectionSources, setReflectionSources] = useState<ReflectionSource[]>([]);
   const [sourcesBusy, setSourcesBusy] = useState(false);
   const [sourcesError, setSourcesError] = useState("");
+  const [peopleOverview, setPeopleOverview] = useState<PeopleOverviewPayload | null>(null);
+  const [peopleBusy, setPeopleBusy] = useState(false);
+  const [peopleError, setPeopleError] = useState("");
   const [reflectionsFilter, setReflectionsFilter] = useState<"all" | "app" | "telegram_text" | "voice">("all");
   const [reflectionsSort, setReflectionsSort] = useState<"newest" | "oldest">("newest");
   const [reflectionsQuery, setReflectionsQuery] = useState("");
@@ -419,16 +468,49 @@ function App() {
     }
   };
 
+  const fetchPeopleOverview = async () => {
+    setPeopleBusy(true);
+    setPeopleError("");
+    try {
+      const response = await fetch(`${API_URL}/api/people`);
+      const payload = (await response.json()) as PeopleOverviewPayload | { detail?: string };
+      if (!response.ok) {
+        const errorMessage = (payload as { detail?: string }).detail;
+        throw new Error(errorMessage || "Unable to load people overview.");
+      }
+      setPeopleOverview(payload as PeopleOverviewPayload);
+    } catch (error) {
+      setPeopleOverview(null);
+      setPeopleError((error as Error).message || "Could not load people overview.");
+    } finally {
+      setPeopleBusy(false);
+    }
+  };
+
   const onSelectTotal = async (selection: TotalSelection) => {
     setSelectedTotal(selection);
     if (selection === "reflections") {
+      setPeopleBusy(false);
+      setPeopleError("");
+      setPeopleOverview(null);
       await fetchReflectionSources();
+      return;
+    }
+
+    if (selection === "people") {
+      setSourcesBusy(false);
+      setSourcesError("");
+      setReflectionSources([]);
+      await fetchPeopleOverview();
       return;
     }
 
     setSourcesBusy(false);
     setSourcesError("");
     setReflectionSources([]);
+    setPeopleBusy(false);
+    setPeopleError("");
+    setPeopleOverview(null);
   };
 
   const submitReflection = async () => {
@@ -670,6 +752,20 @@ function App() {
     return byDate;
   }, [reflectionSources, reflectionsFilter, reflectionsSort, reflectionsQuery]);
 
+  const relationshipMix = useMemo(() => {
+    if (!peopleOverview) {
+      return [] as RelationshipMixEntry[];
+    }
+    return peopleOverview.relationship_mix.slice(0, 10);
+  }, [peopleOverview]);
+
+  const topTriggerPatterns = useMemo(() => {
+    if (!peopleOverview) {
+      return [] as TriggerPatternEntry[];
+    }
+    return peopleOverview.top_trigger_patterns.slice(0, 12);
+  }, [peopleOverview]);
+
   return (
     <div className="app-shell">
       <main className="content">
@@ -723,12 +819,6 @@ function App() {
                 close
               </button>
             </div>
-
-            {selectedTotal !== "reflections" ? (
-              <p className="muted">
-                Source drill-down for <strong>{TOTAL_LABELS[selectedTotal]}</strong> is not implemented yet.
-              </p>
-            ) : null}
 
             {selectedTotal === "reflections" ? (
               <>
@@ -795,6 +885,118 @@ function App() {
                   </>
                 ) : null}
               </>
+            ) : null}
+
+            {selectedTotal === "people" ? (
+              <>
+                {peopleBusy ? <p className="muted">Loading people graph...</p> : null}
+                {peopleError ? <p className="error">{peopleError}</p> : null}
+                {!peopleBusy && !peopleError && !peopleOverview?.people.length ? (
+                  <p className="muted">No people found in the graph yet.</p>
+                ) : null}
+
+                {peopleOverview?.people.length ? (
+                  <section className="people-drilldown">
+                    <article className="people-key-action">
+                      <p className="people-key-action-label">Key Action</p>
+                      <p className="people-key-action-text">{peopleOverview.summary.key_action}</p>
+                      <div className="people-kpi-row">
+                        <p>
+                          <strong>{peopleOverview.summary.total_people}</strong> people
+                        </p>
+                        <p>
+                          <strong>{peopleOverview.summary.total_mentions}</strong> mentions
+                        </p>
+                        <p>
+                          <strong>{peopleOverview.summary.unique_relationships}</strong> relationship types
+                        </p>
+                        <p>
+                          Top:{" "}
+                          <strong>
+                            {peopleOverview.summary.top_person
+                              ? `${peopleOverview.summary.top_person} (${peopleOverview.summary.top_person_mentions})`
+                              : "n/a"}
+                          </strong>
+                        </p>
+                      </div>
+                    </article>
+
+                    <div className="people-chart-grid">
+                      <article className="panel compact">
+                        <h3>Relationship Mix</h3>
+                        {relationshipMix.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={relationshipMix} layout="vertical">
+                              <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                              <XAxis type="number" stroke={THEME_COLORS.muted} />
+                              <YAxis
+                                dataKey="relationship"
+                                type="category"
+                                width={120}
+                                tickFormatter={(value) => titleCase(String(value))}
+                                stroke={THEME_COLORS.muted}
+                              />
+                              <Tooltip {...CHART_TOOLTIP_STYLE} />
+                              <Bar dataKey="mentions" radius={6} fill="#ff9f58" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <p className="muted">No relationship data yet.</p>
+                        )}
+                      </article>
+
+                      <article className="panel compact">
+                        <h3>Top Triggered Patterns</h3>
+                        {topTriggerPatterns.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={topTriggerPatterns} layout="vertical">
+                              <CartesianGrid strokeDasharray="3 3" stroke={THEME_COLORS.mutedBorder} />
+                              <XAxis type="number" stroke={THEME_COLORS.muted} />
+                              <YAxis dataKey="name" type="category" width={150} stroke={THEME_COLORS.muted} />
+                              <Tooltip {...CHART_TOOLTIP_STYLE} />
+                              <Bar dataKey="links" radius={6} fill="#8ab4f8" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <p className="muted">No triggered patterns tracked yet.</p>
+                        )}
+                      </article>
+                    </div>
+
+                    <section className="people-list">
+                      {peopleOverview.people.map((person) => (
+                        <article key={person.id || person.name} className="people-item">
+                          <div className="people-item-head">
+                            <h3>{person.name}</h3>
+                            <p className="meta">
+                              {titleCase(person.relationship)} • {person.occurrences} mentions
+                            </p>
+                          </div>
+                          {person.description ? <p>{person.description}</p> : null}
+                          <p className="meta">
+                            first seen {formatSourceDate(person.first_seen ?? null)} • last seen{" "}
+                            {formatSourceDate(person.last_seen ?? null)}
+                          </p>
+                          {person.triggered_patterns.length > 0 ? (
+                            <p>
+                              <strong>Triggers:</strong>{" "}
+                              {person.triggered_patterns.map((pattern) => `${pattern.name} (${pattern.links})`).join(", ")}
+                            </p>
+                          ) : (
+                            <p className="muted">No linked patterns yet.</p>
+                          )}
+                        </article>
+                      ))}
+                    </section>
+                  </section>
+                ) : null}
+              </>
+            ) : null}
+
+            {selectedTotal !== "reflections" && selectedTotal !== "people" ? (
+              <p className="muted">
+                Source drill-down for <strong>{TOTAL_LABELS[selectedTotal]}</strong> is not implemented yet.
+              </p>
             ) : null}
           </section>
         ) : null}

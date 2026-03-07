@@ -26,6 +26,11 @@ telegram:
 # Press Ctrl+C to stop all processes.
 dev:
   mkdir -p .tmp; \
+  if [ -f .tmp/synapse-pids ]; then \
+    . .tmp/synapse-pids; \
+    kill "$API_PID" "$FRONTEND_PID" "$TELEGRAM_PID" >/dev/null 2>&1 || true; \
+  fi; \
+  rm -f .tmp/synapse-pids; \
   uv run uvicorn api_server:app --reload --host 0.0.0.0 --port {{PORT_API}} > .tmp/synapse-api.log 2>&1 & \
   API_PID=$!; \
   (cd frontend && VITE_API_URL={{API_URL}} npm run dev -- --host 0.0.0.0 --port {{PORT_FRONTEND}}) > .tmp/synapse-frontend.log 2>&1 & \
