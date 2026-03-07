@@ -5,33 +5,66 @@ This playbook is for two deliverables:
 1. **Live on-stage demo (2:00 max)**
 2. **Submission video (2:00 target)**
 
-Use this exactly as a runbook.
+Use this as an execution runbook.
+
+---
+
+## Hackathon non-negotiables
+
+To stay eligible and score well, we must show:
+
+- **LangChain and/or LangGraph** for agent orchestration
+- **SurrealDB** as persistent data layer
+- A practical, working prototype demonstrated live
+- Submission assets:
+  - Public GitHub repo
+  - Clear README (what it does + how to run)
+  - 2-minute video overview
+  - Live Sunday demo
 
 ---
 
 ## Core story (what we are selling)
 
-Synapse is a reflective AI that **remembers in structure, not just tokens**.
+Synapse is a reflection agent that **remembers in structure, not just tokens**.
 
-Most journaling agents are single-turn and forgetful. Synapse stores durable, queryable memory in SurrealDB (graph + vectors), then uses LangGraph/LangChain agents to reason across that evolving context.
+Most journaling tools are stateless. Synapse turns reflections into an evolving SurrealDB graph + vector memory, then uses LangGraph and LangChain agents to reason over that history.
 
-The result is not "generic coaching." It is context-grounded insight tied to recurring patterns, people, and body signals over time.
+This is the key product claim:
+
+**Clinically informed reflection frameworks (CBT, DBT, IFS, Schema) become durable machine-readable memory that improves answers over time.**
 
 ---
 
 ## 10-second positioning line
 
-"We built a stateful reflection agent where LangGraph runs the workflow and SurrealDB acts as long-term memory, so answers improve with history instead of resetting every session."
+"We built a stateful reflection agent where LangGraph orchestrates multi-step reasoning and SurrealDB stores evolving graph + vector memory, so answers get better with history instead of resetting each session."
 
 ---
 
-## Judge-aligned message map
+## Judge-aligned scorecard (100 points)
 
-- **Structured memory (30%)**: typed graph entities + edges + vector search in SurrealDB
-- **Agent workflow (20%)**: multi-step LangGraph pipeline + ReAct chat agent with tools
-- **Persistent state (20%)**: user-scoped history, MemorySaver threads, cross-session continuity
-- **Practical use case (20%)**: real reflective journaling and pattern awareness
-- **Observability (10%)**: LangSmith traceable nodes and tool calls
+| Criterion | Weight | What to claim | What to visibly prove |
+|---|---:|---|---|
+| Structured Memory / Knowledge Usage (SurrealDB) | 30 | Typed entities + relations + vectors in one persistent store | Show extracted entities, totals/drill-down, and cross-reflection continuity |
+| Agent Workflow Quality (LangChain / LangGraph) | 20 | 6-node LangGraph pipeline + ReAct agents with tools | Narrate pipeline stages and show talk answer grounded in tools |
+| Persistent Agent State | 20 | MemorySaver threads + user-scoped history + cross-session context | Ask a history-dependent question and show specific recurring patterns |
+| Practical Use Case | 20 | Real journaling pain point: repetitive, forgetful coaching | Show actionable pattern/person/body-signal insights |
+| Observability | 10 | Traceable execution with LangSmith | Show trace screenshot/tab if available, or mention `@traceable` eval traces |
+
+---
+
+## High-value README insights to surface
+
+These are differentiators judges will remember:
+
+- **Multichannel memory:** web reflections + Telegram text + Telegram voice notes all write into the same user graph.
+- **Structured therapeutic lenses:** extraction is grounded in CBT/DBT/IFS/Schema frameworks, not generic motivation.
+- **Reliability guardrails:** crisis-safe prompting, non-diagnostic framing, strict JSON contracts, graceful fallback parsing.
+- **Grounding architecture:** extraction agent must retrieve existing patterns + similar reflections before final extraction.
+- **Evidence of rigor:** dedicated eval harness (`evals.py`) for extraction quality, graph integrity, chat grounding, and latency.
+- **Observable system:** LangSmith traceability across pipeline and tools.
+- **Security basics in place:** bcrypt passwords, JWT auth, user-scoped data boundaries.
 
 ---
 
@@ -39,18 +72,19 @@ The result is not "generic coaching." It is context-grounded insight tied to rec
 
 ### Demo goal
 
-Show one complete loop: ingest -> persist -> analyze -> query.
+Show one full proof loop:
+
+`reflect -> extract -> persist -> drill down -> ask your graph`
 
 ### Stage setup (before speaking)
 
-- App already open at `http://localhost:5173`, logged into demo account
-- Browser tab 1: `reflect`
-- Browser tab 2 ready (or quick toggle): totals drill-down and `talk` tab
-- Reflection text pre-pasted in clipboard
-- One fallback question pre-copied for `talk`
-- Terminal running `just dev`
+- Logged into demo account
+- Tab 1: `reflect`
+- Tab 2: `talk`
+- Optional Tab 3: LangSmith trace page or screenshot
+- Reflection and talk question pre-copied
 
-### Suggested reflection text (paste-ready)
+### Suggested reflection text
 
 ```text
 I got feedback from my manager today and immediately felt my chest tighten.
@@ -69,100 +103,90 @@ What pattern shows up most when I mention feedback or authority figures?
 
 | Time | On screen | Speaker line |
 |---|---|---|
-| 0:00-0:12 | Synapse home (`reflect`) | "Synapse is a memory-first reflection agent. It does not just answer, it builds a persistent knowledge graph of your patterns." |
-| 0:12-0:28 | Paste reflection, click `reflect` | "When I submit a reflection, LangGraph runs our multi-step pipeline: extraction, graph updates, historical query, then personalized insight generation." |
-| 0:28-0:52 | While processing, describe architecture | "The key is SurrealDB as both graph and vector memory. So the agent can reuse existing pattern labels and connect this reflection to prior context." |
-| 0:52-1:15 | Show extracted results + insights + follow-ups | "Now we get structured outputs: patterns, emotions, themes, people, body signals, and follow-up questions grounded in my history." |
-| 1:15-1:35 | Open `people` or `patterns` drill-down | "This is not static text. We can inspect relationship impact and pattern frequency from the persisted graph." |
-| 1:35-1:55 | Switch to `talk`, ask prepared question | "Then the chat agent uses graph tools plus hybrid semantic search to answer from stored data, not from a blank context window." |
-| 1:55-2:00 | Close on value statement | "That is Synapse: reliable agent behavior through structured, evolving memory." |
+| 0:00-0:12 | `reflect` screen | "Synapse is a memory-first reflection agent: structured memory in SurrealDB, orchestrated by LangGraph." |
+| 0:12-0:30 | Submit reflection | "This triggers a 6-node pipeline: store reflection, extract patterns, update graph, query history, generate insights, generate follow-ups." |
+| 0:30-0:52 | Processing state | "Extraction is retrieval-grounded, so it reuses existing labels and avoids duplicate concepts over time." |
+| 0:52-1:15 | Results panel | "We now get typed outputs: patterns, emotions, themes, IFS parts, schemas, people, and body signals." |
+| 1:15-1:35 | Open totals drill-down | "Because memory is structured, we can inspect trend frequency and relationship impact across history." |
+| 1:35-1:53 | `talk` question and answer | "The chat agent uses graph + semantic tools to answer from stored context, not just this one prompt." |
+| 1:53-2:00 | Final frame | "This is the hackathon thesis: reliable agents through structured, persistent, observable memory." |
 
 ---
 
-## Live demo fallback path (if latency hits)
+## Tight live script (readable version)
 
-If reflection processing is slow on stage:
+"Most reflection AI is stateless, so it forgets your patterns. Synapse fixes that by combining LangGraph orchestration with SurrealDB graph + vector memory.
 
-1. Use pre-existing reflection results already visible in the session.
-2. Continue with drill-down + `talk` (these still prove persistent memory and agent tooling).
-3. Say: "Pipeline normally completes in ~20-30s, but the graph state shown here is from the same workflow."
+When I submit a reflection, we run a 6-step agent workflow: persist the entry, extract structured signals, update the graph, query prior context, then synthesize insights and follow-up prompts.
 
-If chat response is slow:
+The extraction step is tool-grounded: it checks existing patterns and similar reflections first, so memory stays consistent over time.
+
+Now we can see typed outputs across therapeutic lenses: patterns, emotions, IFS parts, schema patterns, people, and body signals.
+
+In Talk, the agent answers with graph tools and semantic retrieval over historical context, so responses are grounded in this user's evolving memory.
+
+We also instrument this with LangSmith and evaluate extraction quality, graph integrity, grounding, and latency. So Synapse is not just a chatbot demo. It is a practical, stateful, observable agent system."
+
+---
+
+## Fallback plan (latency-safe)
+
+If reflection processing is slow:
+
+1. Use already-processed reflections in the same account.
+2. Continue with drill-down and `talk` to prove persistent memory.
+3. State: "Fresh processing typically completes in ~15-30s; this view is from the same pipeline and memory graph."
+
+If talk response is slow:
 
 1. Keep the question visible.
-2. Narrate tool strategy (person deep dive + hybrid search).
-3. Show previously answered message in the thread as evidence of grounded responses.
-
----
-
-## Full live script (readable version)
-
-"Synapse is a memory-first reflection agent. Most journaling AI tools are single-turn, so they forget context and repeat generic advice. We built this on LangGraph and SurrealDB so memory is durable and structured.
-
-Here I submit a real reflection. This triggers our LangGraph pipeline: we extract patterns with tool calls, update a SurrealDB knowledge graph, query historical links, then generate insights and follow-up questions.
-
-The important part is retrieval before extraction, so we reuse existing pattern labels instead of inventing new duplicates. That gives us consistency across time.
-
-Now you can see structured outputs: patterns, emotions, themes, people, and body signals. These are persisted, so we can drill into relationship impact and recurring triggers.
-
-In the talk tab, I ask a question. The chat agent calls graph tools and hybrid semantic search, then answers from stored user history.
-
-So Synapse moves beyond a demo chatbot. It is a stateful agent system with evolving memory, grounded reasoning, and a practical user workflow."
+2. Narrate the tool path (overview + deep-dive + hybrid search).
+3. Show a prior answer in the same thread to prove grounding.
 
 ---
 
 ## Submission video plan (2:00)
 
-### Video objective
-
-Deliver the same proof as live demo, but cleaner and tighter with cuts.
-
-### Shot list + narration timing
+### Shot list
 
 | Time | Visual | Voiceover |
 |---|---|---|
-| 0:00-0:08 | Title card: "Synapse - Memory-First Reflection Agent" | "Synapse turns journaling into an evolving knowledge graph." |
-| 0:08-0:22 | UI overview: totals + tabs | "Instead of one-off outputs, our agent keeps structured memory in SurrealDB." |
-| 0:22-0:45 | Paste reflection and submit | "A LangGraph pipeline extracts patterns, updates graph state, and synthesizes personalized insights." |
-| 0:45-1:05 | Show extracted entities + insights | "Extraction is retrieval-grounded, so labels stay consistent over time." |
-| 1:05-1:25 | Show patterns/people drill-down | "Because memory is structured, we can inspect recurring triggers and relationship dynamics." |
-| 1:25-1:45 | Ask question in `talk` and show response streaming | "Our ReAct chat agent answers with graph tools and hybrid semantic search." |
-| 1:45-1:56 | Quick architecture slate (LangGraph + SurrealDB + LangSmith) | "This combines orchestration, persistent memory, and observability." |
-| 1:56-2:00 | Closing card | "Synapse: reliable agent behavior through structured, persistent context." |
+| 0:00-0:08 | Title card | "Synapse turns journaling into evolving structured memory." |
+| 0:08-0:24 | Reflect UI | "LangGraph orchestrates a multi-step workflow over SurrealDB memory." |
+| 0:24-0:50 | Submit reflection | "We extract clinically grounded signals, persist graph state, and generate personalized insights." |
+| 0:50-1:15 | Output + drill-down | "Insights are inspectable: trends, triggers, and relationship dynamics." |
+| 1:15-1:40 | Talk answer | "ReAct tools query graph + vectors for grounded history-aware responses." |
+| 1:40-1:52 | LangSmith/evals slate | "Execution is observable and tested across quality, grounding, and latency." |
+| 1:52-2:00 | Close card | "Stateful agents are more reliable when memory is structured and persistent." |
 
 ### Recording checklist
 
-- Use 1080p capture (30fps is fine)
-- Increase browser zoom to 110-125% for readability
-- Keep cursor movement intentional and slow
-- Hide bookmarks/tabs unrelated to demo
-- Mute notifications
-- Record one clean take per segment, then stitch
-
-### Editing checklist
-
-- Keep total duration under 2:00
-- Add captions for key claims ("LangGraph pipeline", "SurrealDB graph + vector memory", "Tool-grounded answers")
-- Cut dead wait time during model latency
-- Ensure final export audio is normalized and clear
+- 1080p, readable zoom (110-125%)
+- Keep cursor movement deliberate
+- Remove unrelated tabs/notifications
+- Trim dead latency waits
+- Keep final export under 2:00
 
 ---
 
-## What to show (do not skip)
+## Bonus consideration (open-source contribution)
 
-- Reflection ingestion action (`reflect` submit)
-- Structured extraction output
-- At least one persisted analytics/drill-down panel (`people` or `patterns`)
-- One `talk` question answered from memory
-- Final architecture/value framing
+Hackathon judges will positively recognize reusable LangChain integrations published as a separate repo.
 
-If all five are visible, the pitch lands.
+If time permits, propose one extraction from Synapse into an OSS mini-repo:
+
+- SurrealDB graph-memory toolkit helpers
+- Reflection-memory retriever adapter
+- Checkpoint/state utility for LangGraph + SurrealDB
+
+Even a focused, documented MVP can strengthen final judging.
 
 ---
 
-## Final submission checklist
+## Final pre-submit checklist
 
-- Public GitHub repo
-- README that explains value + architecture + run instructions
-- 2-minute project video link
-- Team ready for live demo flow above
+- Public GitHub repo is up and accessible
+- README is clear and current
+- 2-minute video link prepared
+- Live demo flow rehearsed with fallback
+- One-line value proposition memorized
