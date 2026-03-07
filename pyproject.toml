@@ -14,4 +14,5 @@ dependencies = [
     "streamlit>=1.55.0",
     "streamlit-agraph>=0.0.45",
     "surrealdb>=1.0.8",
+    "watchdog>=6.0.0",
 ]

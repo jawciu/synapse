@@ -172,7 +172,7 @@ with tab2:
                         font=dict(color="white"),
                         bargap=0.35,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
 
                 # ── Top 5 per category ──
                 categories = [
