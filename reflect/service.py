@@ -51,16 +51,20 @@ def _normalize_reflection_source(source: str | None) -> str:
 
 
 def _query_with_reconnect(statement: str, params: dict[str, Any] | None = None) -> Any:
-    _init()
-    from .agent import _conn
+    from . import agent as agent_runtime
 
-    if _conn is None:
+    _init()
+
+    if agent_runtime._conn is None:
         return None
 
     last_error: Exception | None = None
     for _ in range(2):
+        conn = agent_runtime._conn
+        if conn is None:
+            break
         try:
-            return _conn.query(statement, params or {})
+            return conn.query(statement, params or {})
         except Exception as exc:
             last_error = exc
             _init(force_reconnect=True)
@@ -176,10 +180,11 @@ async def stream_chat(message: str, thread_id: str | None, user_id: str | None =
 
 
 def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
-    _init()
-    from .agent import _conn
+    from . import agent as agent_runtime
 
-    if _conn is None:
+    _init()
+
+    if agent_runtime._conn is None:
         return {
             "patterns_by_category": {"cognitive": [], "emotional": [], "relational": [], "behavioral": []},
             "themes": [],
@@ -221,34 +226,21 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
     )
     schema_rows = [] if (not schema_rows or isinstance(schema_rows, str)) else schema_rows
 
-    emotion_nodes = _query_with_reconnect(
-        "SELECT id, name, valence, intensity FROM emotion WHERE user_id = $user_id ORDER BY name ASC",
+    emotion_rows = _query_with_reconnect(
+        "SELECT name, valence, intensity, array::len(<-expresses) AS mentions FROM emotion WHERE user_id = $user_id ORDER BY name ASC",
         uid,
     )
-    emotion_nodes = [] if (not emotion_nodes or isinstance(emotion_nodes, str)) else emotion_nodes
-    emotion_rows: list[dict[str, Any]] = []
-    for row in emotion_nodes:
-        if not isinstance(row, dict):
-            continue
-        emotion_id = row.get("id")
-        mentions_rows = []
-        if emotion_id:
-            mentions_rows = _query_with_reconnect(
-                "SELECT count() AS total FROM expresses WHERE out = $emotion_id GROUP ALL",
-                {"emotion_id": emotion_id},
-            )
-        mentions = 0
-        if mentions_rows and not isinstance(mentions_rows, str):
-            mentions = int(mentions_rows[0].get("total") or 0)
-
-        emotion_rows.append(
-            {
-                "name": row.get("name"),
-                "valence": row.get("valence"),
-                "intensity": float(row.get("intensity") or 0),
-                "mentions": mentions,
-            }
-        )
+    emotion_rows = [] if (not emotion_rows or isinstance(emotion_rows, str)) else emotion_rows
+    emotion_rows = [
+        {
+            "name": row.get("name"),
+            "valence": row.get("valence"),
+            "intensity": float(row.get("intensity") or 0),
+            "mentions": int(row.get("mentions") or 0),
+        }
+        for row in emotion_rows
+        if isinstance(row, dict)
+    ]
     emotion_rows.sort(
         key=lambda item: (
             -int(item.get("mentions") or 0),
@@ -282,32 +274,20 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
     )
     total_reflections = reflections_total[0]["total"] if reflections_total and not isinstance(reflections_total, str) else 0
 
-    theme_nodes = _query_with_reconnect(
-        "SELECT id, name, description FROM theme WHERE user_id = $user_id ORDER BY name ASC",
+    themes_rows = _query_with_reconnect(
+        "SELECT name, description, array::len(<-about) AS mentions FROM theme WHERE user_id = $user_id ORDER BY name ASC",
         uid,
     )
-    theme_nodes = [] if (not theme_nodes or isinstance(theme_nodes, str)) else theme_nodes
-    themes_rows: list[dict[str, Any]] = []
-    for row in theme_nodes:
-        if not isinstance(row, dict):
-            continue
-        theme_id = row.get("id")
-        mentions_rows = []
-        if theme_id:
-            mentions_rows = _query_with_reconnect(
-                "SELECT count() AS total FROM about WHERE out = $theme_id GROUP ALL",
-                {"theme_id": theme_id},
-            )
-        mentions = 0
-        if mentions_rows and not isinstance(mentions_rows, str):
-            mentions = int(mentions_rows[0].get("total") or 0)
-        themes_rows.append(
-            {
-                "name": row.get("name"),
-                "description": row.get("description"),
-                "mentions": mentions,
-            }
-        )
+    themes_rows = [] if (not themes_rows or isinstance(themes_rows, str)) else themes_rows
+    themes_rows = [
+        {
+            "name": row.get("name"),
+            "description": row.get("description"),
+            "mentions": int(row.get("mentions") or 0),
+        }
+        for row in themes_rows
+        if isinstance(row, dict)
+    ]
     themes_rows.sort(
         key=lambda item: (
             -int(item.get("mentions") or 0),
@@ -348,10 +328,11 @@ def get_dashboard_payload(user_id: str | None = None) -> dict[str, Any]:
 
 
 def get_people_overview_payload(user_id: str | None = None) -> dict[str, Any]:
-    _init()
-    from .agent import _conn
+    from . import agent as agent_runtime
 
-    if _conn is None:
+    _init()
+
+    if agent_runtime._conn is None:
         return {
             "people": [],
             "relationship_mix": [],
@@ -376,6 +357,20 @@ def get_people_overview_payload(user_id: str | None = None) -> dict[str, Any]:
     if not people_rows or isinstance(people_rows, str):
         people_rows = []
 
+    trigger_rows = _query_with_reconnect(
+        "SELECT in AS person_id, out.name AS name, out.category AS category FROM triggers_pattern WHERE in.user_id = $user_id",
+        uid,
+    )
+    trigger_rows = [] if (not trigger_rows or isinstance(trigger_rows, str)) else trigger_rows
+    trigger_rows_by_person: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for trigger in trigger_rows:
+        if not isinstance(trigger, dict):
+            continue
+        person_key = str(trigger.get("person_id") or "").strip()
+        if not person_key:
+            continue
+        trigger_rows_by_person[person_key].append(trigger)
+
     relationship_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"people_count": 0, "mentions": 0})
     trigger_pattern_counts: dict[str, dict[str, Any]] = {}
     people_payload: list[dict[str, Any]] = []
@@ -399,17 +394,11 @@ def get_people_overview_payload(user_id: str | None = None) -> dict[str, Any]:
         relationship_counts[relationship]["mentions"] += occurrences
         total_mentions += occurrences
 
-        trigger_rows = []
-        if person_id:
-            trigger_rows = _query_with_reconnect(
-                "SELECT out.name AS name, out.category AS category FROM triggers_pattern WHERE in = $person_id",
-                {"person_id": person_id},
-            )
-            if not trigger_rows or isinstance(trigger_rows, str):
-                trigger_rows = []
+        person_key = str(person_id or "").strip()
+        person_trigger_rows = trigger_rows_by_person.get(person_key, [])
 
         trigger_map: dict[str, dict[str, Any]] = {}
-        for trigger in trigger_rows:
+        for trigger in person_trigger_rows:
             if not isinstance(trigger, dict):
                 continue
             trigger_name = str(trigger.get("name") or "").strip()
@@ -487,10 +476,11 @@ def get_people_overview_payload(user_id: str | None = None) -> dict[str, Any]:
 
 
 def get_reflections(user_id: str | None = None) -> list[dict[str, Any]]:
-    _init()
-    from .agent import _conn
+    from . import agent as agent_runtime
 
-    if _conn is None:
+    _init()
+
+    if agent_runtime._conn is None:
         return []
 
     rows = _query_with_reconnect(

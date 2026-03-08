@@ -45,25 +45,19 @@ class ReflectionState(TypedDict):
 # ── Shared resources (initialized once) ──
 _conn = None
 _vector_store = None
+_schema_initialized = False
 
 
 def _init(force_reconnect=False):
-    global _conn, _vector_store
+    global _conn, _vector_store, _schema_initialized
     if _conn is None or force_reconnect:
         _conn = get_connection()
-        init_schema(_conn)
+        if not _schema_initialized:
+            init_schema(_conn)
+            _schema_initialized = True
         embeddings = get_embeddings()
         set_embeddings_model(embeddings)
         _vector_store = get_vector_store(_conn, embeddings)
-        return
-
-    # Keep the shared websocket connection healthy across long-running deployments.
-    # SurrealDB can close idle websocket connections; a reconnect here prevents
-    # transient "keepalive ping timeout" failures on next dashboard/chat call.
-    try:
-        _conn.query("SELECT 1")
-    except Exception:
-        _init(force_reconnect=True)
 
 
 def get_conn_and_vector_store():
