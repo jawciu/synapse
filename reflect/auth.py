@@ -135,7 +135,7 @@ def confirm_password_reset(conn: Surreal, token: str, new_password: str) -> bool
 
 def get_user_by_telegram_id(conn: Surreal, telegram_id: int) -> str | None:
     rows = conn.query(
-        "SELECT id FROM app_user WHERE telegram_id = $tid",
+        "SELECT id FROM app_user WHERE telegram_id = $tid ORDER BY created_at DESC LIMIT 1",
         {"tid": telegram_id},
     )
     if rows:
@@ -144,10 +144,21 @@ def get_user_by_telegram_id(conn: Surreal, telegram_id: int) -> str | None:
 
 
 def link_telegram_to_user(conn: Surreal, user_id: str, telegram_id: int) -> None:
+    # Enforce one Telegram ID -> one account mapping by clearing stale links first.
     conn.query(
-        "UPDATE $uid SET telegram_id = $tid",
-        {"uid": user_id, "tid": telegram_id},
+        "UPDATE app_user SET telegram_id = NONE WHERE telegram_id = $tid",
+        {"tid": telegram_id},
     )
+    target = user_id.strip()
+    if ":" not in target:
+        target = f"app_user:{target}"
+    conn.query(
+        f"UPDATE {target} SET telegram_id = $tid",
+        {"tid": telegram_id},
+    )
+    linked_user_id = get_user_by_telegram_id(conn, telegram_id)
+    if not linked_user_id:
+        raise RuntimeError("Telegram link failed to persist")
 
 
 def register_user_from_telegram(conn: Surreal, email: str, password: str, telegram_id: int) -> dict:

@@ -119,7 +119,10 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Link this Telegram account to an existing web account."""
-    _link_flow[update.effective_user.id] = {"step": "email"}
+    tid = update.effective_user.id
+    _pending_reflect.discard(tid)
+    _reg_flow.pop(tid, None)
+    _link_flow[tid] = {"step": "email"}
     await update.message.reply_text(
         "Send me the *email* for your existing synapse web account.",
         parse_mode="Markdown",
@@ -185,8 +188,10 @@ async def _handle_link(update: Update, text: str) -> bool:
         try:
             result = login_user(_conn, email, password)
             link_telegram_to_user(_conn, result["user_id"], tid)
+            _reg_flow.pop(tid, None)
             await update.message.reply_text(
-                f"Linked! Your Telegram is now connected to *{result['email']}*.",
+                f"Linked! Your Telegram is now connected to *{result['email']}*.\n\n"
+                "Send a voice note or text anytime and I'll save it to your graph.",
                 parse_mode="Markdown",
             )
         except Exception as exc:
@@ -202,10 +207,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     tid = update.effective_user.id
     text = update.message.text
 
-    # Registration and link flows take priority
-    if await _handle_registration(update, text):
-        return
+    # Link flow takes precedence so /link can't be hijacked by stale registration state.
     if await _handle_link(update, text):
+        return
+    if await _handle_registration(update, text):
         return
 
     user_id = await _require_auth(update)
