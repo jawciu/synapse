@@ -24,6 +24,7 @@ from reflect.service import (
     run_chat,
     run_reflection_pipeline,
     stream_chat,
+    stream_reflection_pipeline,
 )
 
 
@@ -196,6 +197,24 @@ def submit_reflection(
         return ReflectionResponse.model_validate(graph_result)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to process reflection: {exc}") from exc
+
+
+@app.post("/api/reflection/stream")
+async def submit_reflection_stream(
+    payload: ReflectionRequest,
+    user_id: str = Depends(get_current_user),
+) -> StreamingResponse:
+    return StreamingResponse(
+        stream_reflection_pipeline(
+            reflection_text=payload.reflection_text,
+            daily_prompt=payload.daily_prompt,
+            thread_id=payload.thread_id,
+            source=payload.source,
+            user_id=user_id,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/chat", response_model=AskResponse)

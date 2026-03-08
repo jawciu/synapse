@@ -13,13 +13,7 @@ from .graph_store import (
     set_embeddings_model,
     make_graph_tools,
     store_reflection_record,
-    upsert_pattern,
-    upsert_theme,
-    upsert_emotion,
-    upsert_ifs_part,
-    upsert_schema,
-    upsert_person,
-    upsert_body_signal,
+    batch_upsert_entities,
     create_edges,
     query_co_occurrences,
     query_negative_emotion_triggers,
@@ -99,42 +93,15 @@ def update_graph(state: ReflectionState) -> dict:
     rid = state["reflection_id"]
     user_id = state.get("user_id")
 
-    pattern_ids = []
-    for p in extracted.get("patterns", []):
-        pid = upsert_pattern(_conn, p["name"], p["category"], p["description"], user_id=user_id)
-        pattern_ids.append(pid)
+    # Batch all embeddings into a single API call, then upsert entities
+    ids = batch_upsert_entities(_conn, extracted, user_id=user_id)
 
-    theme_ids = []
-    for t in extracted.get("themes", []):
-        tid = upsert_theme(_conn, t["name"], t["description"], user_id=user_id)
-        theme_ids.append(tid)
-
-    emotion_ids = []
-    for e in extracted.get("emotions", []):
-        eid = upsert_emotion(_conn, e["name"], e["valence"], e["intensity"], user_id=user_id)
-        emotion_ids.append(eid)
-
-    ifs_part_ids = []
-    for part in extracted.get("ifs_parts", []):
-        pid = upsert_ifs_part(_conn, part["name"], part["role"], part["description"], user_id=user_id)
-        ifs_part_ids.append(pid)
-
-    schema_ids = []
-    for s in extracted.get("schemas", []):
-        sid = upsert_schema(_conn, s["name"], s["domain"], s.get("coping_style", "none"), s["description"], user_id=user_id)
-        schema_ids.append(sid)
-
-    person_ids = []
-    for p in extracted.get("people", []):
-        pid = upsert_person(_conn, p["name"], p["relationship"], p.get("description", ""), user_id=user_id)
-        person_ids.append(pid)
-
-    body_signal_ids = []
-    for b in extracted.get("body_signals", []):
-        bid = upsert_body_signal(_conn, b["name"], b.get("location", "other"), user_id=user_id)
-        body_signal_ids.append(bid)
-
-    create_edges(_conn, rid, pattern_ids, emotion_ids, theme_ids, extracted, ifs_part_ids, schema_ids, person_ids, body_signal_ids)
+    create_edges(
+        _conn, rid,
+        ids["pattern_ids"], ids["emotion_ids"], ids["theme_ids"],
+        extracted,
+        ids["ifs_part_ids"], ids["schema_ids"], ids["person_ids"], ids["body_signal_ids"],
+    )
     return {}
 
 
@@ -203,7 +170,7 @@ def generate_followups(state: ReflectionState) -> dict:
         patterns=patterns_str,
         people=people_str,
         body_signals=body_str,
-        insights=state["insights"],
+        insights=state.get("insights", ""),
     )
     response = llm.invoke(prompt_text)
     try:
@@ -236,7 +203,8 @@ def build_reflection_graph():
     builder.add_edge("extract_patterns", "update_graph")
     builder.add_edge("update_graph", "query_graph")
     builder.add_edge("query_graph", "generate_insights")
-    builder.add_edge("generate_insights", "generate_followups")
+    builder.add_edge("query_graph", "generate_followups")
+    builder.add_edge("generate_insights", END)
     builder.add_edge("generate_followups", END)
 
     return builder.compile(checkpointer=MemorySaver())

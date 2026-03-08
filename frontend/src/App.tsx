@@ -333,32 +333,12 @@ const ASK_PROMPTS = [
   "What triggers my biggest emotional responses?",
 ];
 
-const PROGRESS_MESSAGES = [
-  "Connecting...",
-  "Reading your reflection...",
-  "Analysing patterns...",
-  "Understanding emotions...",
-  "Creating connections...",
-  "Extracting themes...",
-  "Pulling insights...",
-  "Building your graph...",
-];
-
-function ReflectionProgress() {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIndex((prev) => Math.min(prev + 1, PROGRESS_MESSAGES.length - 1));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
+function ReflectionProgress({ message }: { message: string }) {
   return (
-    <div className="reflection-progress" key={index}>
+    <div className="reflection-progress" key={message}>
       <div className="reflection-progress-inner">
         <FlowerIcon className="reflection-progress-icon" />
-        <span className="reflection-progress-text">{PROGRESS_MESSAGES[index]}</span>
+        <span className="reflection-progress-text">{message}</span>
       </div>
       <div className="reflection-progress-shimmer" />
     </div>
@@ -400,6 +380,7 @@ function App() {
   const [dailyPrompt, setDailyPrompt] = useState("");
   const [reflectionText, setReflectionText] = useState("");
   const [reflectionBusy, setReflectionBusy] = useState(false);
+  const [reflectionProgressMsg, setReflectionProgressMsg] = useState("Connecting...");
   const [reflectionError, setReflectionError] = useState("");
   const [lastReflection, setLastReflection] = useState<ReflectionPayload | null>(null);
 
@@ -564,9 +545,10 @@ function App() {
     const textSnapshot = reflectionText;
     setReflectionBusy(true);
     setReflectionError("");
+    setReflectionProgressMsg("Connecting...");
 
     try {
-      const response = await fetch(`${API_URL}/api/reflection`, {
+      const response = await fetch(`${API_URL}/api/reflection/stream`, {
         method: "POST",
         headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({
@@ -577,10 +559,47 @@ function App() {
         }),
       });
 
-      const payload = (await response.json()) as ReflectionResponse & { detail?: string };
       if (!response.ok) {
-        throw new Error(payload.detail || "Unable to run reflection");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error((errData as Record<string, string>).detail || "Unable to run reflection");
       }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let payload: (ReflectionResponse & { detail?: string }) | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6)) as {
+              type: string;
+              content?: unknown;
+              message?: string;
+              node?: string;
+            };
+            if (evt.type === "progress" && evt.message) {
+              setReflectionProgressMsg(evt.message);
+            } else if (evt.type === "result" && evt.content) {
+              payload = evt.content as ReflectionResponse & { detail?: string };
+            }
+          } catch {
+            // skip malformed SSE lines
+          }
+        }
+      }
+
+      if (!payload) throw new Error("No result received from pipeline");
 
       // Safety net: force crisis_flag if input contains crisis keywords
       const lower = textSnapshot.toLowerCase();
@@ -1776,7 +1795,7 @@ function App() {
                     reflect
                   </button>
                 </div>
-                {reflectionBusy ? <ReflectionProgress /> : null}
+                {reflectionBusy ? <ReflectionProgress message={reflectionProgressMsg} /> : null}
                 {reflectionError ? <p className="error">{reflectionError}</p> : null}
 
                 {lastReflection ? (

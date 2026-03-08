@@ -118,6 +118,46 @@ For production deployments, set a strong `JWT_SECRET`, enforce secure environmen
 
 ---
 
+## Challenges and tradeoffs
+
+### Pipeline latency
+
+The biggest engineering challenge was end-to-end latency on the reflection pipeline. A single reflection submission triggers a 6-node LangGraph pipeline that includes:
+
+- 2+ LLM calls in the extraction agent (Claude Sonnet must call retrieval tools before extracting)
+- 20+ OpenAI embedding API calls to vectorize each extracted entity
+- 50-150+ sequential SurrealDB writes for edge creation (pattern co-occurrences, emotion-theme links, person-pattern triggers)
+- 2 further LLM calls for insight and follow-up generation
+
+The critical path is mostly sequential — only `store_reflection` and `extract_patterns` run in parallel, then everything converges.
+
+### Model selection: accuracy vs speed
+
+We tested several models for the extraction agent:
+
+| Model | Latency | Quality |
+|-------|---------|---------|
+| **Claude Sonnet 4.6** | ~35-45s | Best tool use, deepest extraction, consistent JSON |
+| GPT-4.1 | ~25s | Faster but weaker at multi-tool orchestration and nuanced pattern recognition |
+| GPT-5-mini | ~75-85s | Slower than Sonnet with less accurate extractions |
+
+We chose Sonnet because extraction quality directly determines graph accuracy — every future insight and chat answer depends on how well the initial extraction captures patterns, schemas, and relationships. A faster but shallower extraction compounds into worse results over time.
+
+### Approaches we tried to reduce perceived latency
+
+1. **Parallelising LangGraph nodes** — helped slightly for the first two nodes, but the remaining four must run sequentially (each depends on the previous output).
+2. **Streaming an early insight** before the full extraction completes — this actually increased total latency because the additional LLM call competed for resources and delayed the main pipeline.
+3. **Progressive status updates** — what we shipped. The frontend cycles through contextual messages ("Analysing patterns...", "Building your graph...", "Pulling insights...") to keep the user oriented while the backend works. Not a latency fix, but it makes the wait feel purposeful rather than broken.
+
+### What we would optimise next
+
+- Batch SurrealDB writes instead of sequential `RELATE` calls
+- Parallel embedding calls (currently each entity is embedded one at a time)
+- Run `generate_insights` and `generate_followups` in parallel (they are currently sequential but `followups` only needs `insights` as input, not the other way around — though we chose sequential to let followups reference the generated insights)
+- Stream extraction progress to the frontend via SSE so status messages reflect real pipeline state
+
+---
+
 ## What Synapse does today
 
 - Ingests reflections through a 6-node LangGraph pipeline
