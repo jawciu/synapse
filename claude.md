@@ -43,6 +43,7 @@ The repo is small but mostly complete as a demo:
 - Dashboard aggregation now avoids N+1 edge-count queries (emotion/theme mentions and people trigger-link retrieval are batched), and the insights view now shows an explicit loading state instead of rendering empty-state tiles while data is still in flight.
 - Initial authenticated app boot now fetches only the daily prompt; dashboard/reflection-source payloads are deferred until the user opens `insights`, improving perceived startup responsiveness.
 - Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
+- The local `surrealdb` skill now includes Surrealist-specific demo/query guidance: `ORDER BY` projection rule, graph-view cluster interpretation, `FETCH`-first traversal patterns, and `user_id` scoping modes (`$uid` and `NONE` seed data).
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
 - Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
