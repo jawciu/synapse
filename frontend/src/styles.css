@@ -1013,7 +1013,12 @@ textarea {
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
-  background: linear-gradient(160deg, #f8f4ec 0%, #f0e5d4 100%);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.8) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.7) 0 1px, transparent 1px 22px),
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.7) 0, transparent 38%),
+    linear-gradient(150deg, #fbf8f3 0%, #f2ebe2 55%, #f8f4ec 100%);
+  background-attachment: fixed;
   animation: fadeIn 0.5s ease;
 }
 
@@ -1032,7 +1037,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #8c7f88;
+  color: var(--text);
 }
 
 .auth-logo-icon {
@@ -1044,6 +1049,7 @@ textarea {
 .auth-logo .logo {
   font-size: 32px;
   letter-spacing: 0.14em;
+  color: var(--text);
 }
 
 .auth-tagline {
@@ -1070,6 +1076,9 @@ textarea {
 
 .auth-tabs {
   margin: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
 }
 
 .auth-form {
@@ -1114,12 +1123,12 @@ textarea {
 .auth-btn {
   padding: 11px 16px;
   background: linear-gradient(135deg, #b9a9f2, #9ec1e8);
-  color: #fff;
+  color: var(--text);
   border: none;
   border-radius: 12px;
   font: inherit;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   transition: opacity 0.15s, box-shadow 0.15s;
   box-shadow: 0 4px 14px rgba(140, 127, 200, 0.28);

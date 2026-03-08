@@ -189,7 +189,7 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
                     className="auth-input"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    minLength={6}
+                    minLength={8}
                     required
                   />
                 </label>
@@ -301,12 +301,12 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
                 className="auth-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
+                minLength={8}
                 required
                 autoComplete="new-password"
               />
             </label>
-            <p className="auth-hint">at least 6 characters</p>
+            <p className="auth-hint">at least 8 characters</p>
             {error && <p className="auth-error">{error}</p>}
             <button type="submit" className="auth-btn" disabled={busy}>
               {busy ? "creating account..." : "create account"}

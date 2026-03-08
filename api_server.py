@@ -59,7 +59,7 @@ def get_db():
 
 class RegisterRequest(BaseModel):
     email: str = Field(description="User email address")
-    password: str = Field(min_length=6, description="Password (min 6 chars)")
+    password: str = Field(min_length=8, description="Password (min 8 chars)")
 
 
 class LoginRequest(BaseModel):
