@@ -41,6 +41,7 @@ The repo is small but mostly complete as a demo:
 - Shared SurrealDB graph resources now initialize schema once per process (not on every reconnect), reducing reconnect overhead.
 - Dashboard and people/reflections read paths now route DB calls through a reconnect-then-retry helper that reuses the refreshed connection object correctly.
 - Dashboard aggregation now avoids N+1 edge-count queries (emotion/theme mentions and people trigger-link retrieval are batched), and the insights view now shows an explicit loading state instead of rendering empty-state tiles while data is still in flight.
+- Initial authenticated app boot now fetches only the daily prompt; dashboard/reflection-source payloads are deferred until the user opens `insights`, improving perceived startup responsiveness.
 - Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
@@ -50,6 +51,7 @@ The repo is small but mostly complete as a demo:
 - The frontend now ships a branded browser favicon at `frontend/public/favicon.svg`, derived from the shared flower logo path used in `frontend/src/icons.tsx`, and `frontend/index.html` links it via `<link rel="icon" ...>`.
 - Frontend Vite build now uses manual vendor chunk splitting in `frontend/vite.config.ts` (React, markdown, and chart deps separated) to avoid oversized single-bundle warnings.
 - Public README now includes a dedicated `Roadmap` section (secure authentication improvements plus privacy, reliability, testing, observability, migration, and product-intelligence milestones).
+- Pitch playbook now includes a Surrealist query-reference appendix with user-scoped (`user_id`) and seed-data graph query examples for live demo fallback.
 
 What is not present:
 
@@ -82,7 +84,7 @@ What is not present:
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
 - [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, data-security/access-control detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, dedicated roadmap milestones, and local runbook
 - [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
-- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): judge-aligned pitch runbook mapped to London hackathon criteria, with 2-minute live/video scripts, fallback paths, and README-backed differentiators
+- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): judge-aligned pitch runbook mapped to London hackathon criteria, with 2-minute live/video scripts, fallback paths, README-backed differentiators, and a Surrealist query-reference appendix for graph demos
 - [.claude/skills/](/Users/ian/dev/synapse/.claude/skills): local agent skills in agentskills.io format (`langchain`, `surrealdb`, `vite-typescript`, `python`)
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml): dependencies and Python version
 - [render.yaml](/Users/ian/dev/synapse/render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`

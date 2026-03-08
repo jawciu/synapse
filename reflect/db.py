@@ -189,11 +189,17 @@ SCHEMA_STATEMENTS = [
     f"""DEFINE INDEX IF NOT EXISTS person_embedding_idx ON person FIELDS embedding HNSW DIMENSION {EMBEDDING_DIM} DIST COSINE TYPE F32""",
 ]
 
+_schema_initialized = False
+
 
 @traceable(run_type="tool", name="init_schema")
 def init_schema(conn: Surreal):
+    global _schema_initialized
+    if _schema_initialized:
+        return
     for stmt in SCHEMA_STATEMENTS:
         conn.query(stmt)
+    _schema_initialized = True
     print("Schema initialized.")
 
 

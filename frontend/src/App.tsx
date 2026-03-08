@@ -408,7 +408,6 @@ function App() {
     if (!authToken) return;
     const initialize = async () => {
       await fetchPrompt();
-      await fetchDashboard();
     };
 
     initialize();
@@ -1006,7 +1005,16 @@ function App() {
             <button
               type="button"
               className={`topbar-nav-link ${activeTab === "insights" ? "active" : ""}`}
-              onClick={() => { setActiveTab("insights"); setSelectedTotal(null); void fetchDashboard(); void fetchReflectionSources(); }}
+              onClick={() => {
+                setActiveTab("insights");
+                setSelectedTotal(null);
+                if (!dashboard && !dashboardBusy) {
+                  void fetchDashboard();
+                }
+                if (reflectionSources.length === 0 && !sourcesBusy) {
+                  void fetchReflectionSources();
+                }
+              }}
             >
               insights
             </button>

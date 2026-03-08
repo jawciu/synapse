@@ -169,6 +169,171 @@ If talk response is slow:
 
 ---
 
+## Surrealist query reference (demo appendix)
+
+Use this block during rehearsal or live demo troubleshooting.
+
+### 1) Discover user cohorts
+
+```sql
+SELECT user_id, count() AS reflections
+FROM reflection
+GROUP BY user_id
+ORDER BY reflections DESC;
+```
+
+### 2) Reflection graph (all users)
+
+```sql
+SELECT
+  id,
+  created_at,
+  ->reveals->pattern.* AS patterns,
+  ->activates->ifs_part.* AS ifs_parts,
+  ->triggers_schema->schema_pattern.* AS schemas,
+  ->expresses->emotion.* AS emotions,
+  ->about->theme.* AS themes,
+  ->mentions->person.* AS people,
+  ->feels_in_body->body_signal.* AS body_signals
+FROM reflection
+LIMIT 8
+FETCH reveals, activates, triggers_schema, expresses, about, mentions, feels_in_body;
+```
+
+### 3) Reflection graph (single user example)
+
+```sql
+LET $uid = "app_user:your_user_record_id";
+
+SELECT
+  id,
+  created_at,
+  ->reveals->pattern.* AS patterns,
+  ->activates->ifs_part.* AS ifs_parts,
+  ->triggers_schema->schema_pattern.* AS schemas,
+  ->expresses->emotion.* AS emotions,
+  ->about->theme.* AS themes,
+  ->mentions->person.* AS people
+FROM reflection
+WHERE user_id = $uid
+LIMIT 12
+FETCH reveals, activates, triggers_schema, expresses, about, mentions;
+```
+
+### 4) Reflection graph (seed/demo rows with `user_id = NONE`)
+
+```sql
+SELECT
+  id,
+  created_at,
+  ->reveals->pattern.* AS patterns,
+  ->activates->ifs_part.* AS ifs_parts,
+  ->triggers_schema->schema_pattern.* AS schemas,
+  ->expresses->emotion.* AS emotions,
+  ->about->theme.* AS themes,
+  ->mentions->person.* AS people
+FROM reflection
+WHERE user_id = NONE
+LIMIT 12
+FETCH reveals, activates, triggers_schema, expresses, about, mentions;
+```
+
+### 5) People hub
+
+```sql
+SELECT
+  id,
+  name,
+  relationship,
+  occurrences,
+  ->triggers_pattern->pattern.* AS triggered_patterns,
+  <-mentions<-reflection.* AS reflections
+FROM person
+LIMIT 20
+FETCH triggers_pattern, mentions;
+```
+
+### 6) Single-person deep dive
+
+```sql
+SELECT
+  id,
+  name,
+  relationship,
+  <-mentions<-reflection.* AS reflections,
+  ->triggers_pattern->pattern.* AS triggered_patterns
+FROM person
+WHERE name = "Dad"
+LIMIT 1
+FETCH mentions, triggers_pattern, reveals, expresses, about;
+```
+
+### 7) Pattern co-occurrence network
+
+```sql
+SELECT
+  id,
+  name,
+  category,
+  occurrences,
+  ->co_occurs_with->pattern.* AS co_out,
+  <-co_occurs_with<-pattern.* AS co_in
+FROM pattern
+LIMIT 20
+FETCH co_occurs_with;
+```
+
+### 8) Emotion trigger map
+
+```sql
+SELECT
+  id,
+  name,
+  valence,
+  intensity,
+  ->triggered_by->theme.* AS triggers
+FROM emotion
+LIMIT 20
+FETCH triggered_by;
+```
+
+### 9) Schema + IFS protection chain
+
+```sql
+SELECT
+  id,
+  name,
+  domain,
+  coping_style,
+  <-triggers_schema<-reflection.* AS source_reflections,
+  <-protects_against<-ifs_part.* AS protecting_parts
+FROM schema_pattern
+LIMIT 20
+FETCH triggers_schema, protects_against;
+```
+
+### 10) Edge-only graph views
+
+```sql
+SELECT * FROM reveals LIMIT 120 FETCH in, out;
+SELECT * FROM co_occurs_with LIMIT 120 FETCH in, out;
+SELECT * FROM triggers_pattern LIMIT 120 FETCH in, out;
+SELECT * FROM mentions LIMIT 120 FETCH in, out;
+SELECT * FROM activates LIMIT 120 FETCH in, out;
+SELECT * FROM triggers_schema LIMIT 120 FETCH in, out;
+```
+
+### Suggested run order (2-minute demo)
+
+1. Reflection graph (#2)
+2. People hub (#5)
+3. Pattern network (#7)
+4. Emotion trigger map (#8)
+5. Schema + IFS chain (#9)
+6. Edge-only view (#10)
+
+---
+
 ## Bonus consideration (open-source contribution)
 
 Hackathon judges will positively recognize reusable LangChain integrations published as a separate repo.
