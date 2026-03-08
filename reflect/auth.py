@@ -135,7 +135,7 @@ def confirm_password_reset(conn: Surreal, token: str, new_password: str) -> bool
 
 def get_user_by_telegram_id(conn: Surreal, telegram_id: int) -> str | None:
     rows = conn.query(
-        "SELECT id FROM app_user WHERE telegram_id = $tid ORDER BY created_at DESC LIMIT 1",
+        "SELECT id, created_at FROM app_user WHERE telegram_id = $tid ORDER BY created_at DESC LIMIT 1",
         {"tid": telegram_id},
     )
     if rows:
