@@ -43,6 +43,7 @@ The repo is small but mostly complete as a demo:
 - Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
 - The dedicated `patterns` tab has been removed from the primary tab bar; primary tabs are now `reflect` and `talk` while totals in the top menubar continue to expose source/drill-down panels.
 - The `talk` tab now uses an empty-first UX: a centered question composer appears immediately, and the larger transcript panel is only rendered after the first message is sent.
+- The frontend now ships a branded browser favicon at `frontend/public/favicon.svg`, derived from the shared flower logo path used in `frontend/src/icons.tsx`, and `frontend/index.html` links it via `<link rel="icon" ...>`.
 
 What is not present:
 
