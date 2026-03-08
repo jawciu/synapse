@@ -19,6 +19,13 @@ def _embed(text: str) -> list[float] | None:
     return _embeddings_model.embed_query(text)
 
 
+def _embed_batch(texts: list[str]) -> list[list[float] | None]:
+    """Embed multiple texts in a single API call. Returns [None, ...] if model unavailable."""
+    if _embeddings_model is None:
+        return [None] * len(texts)
+    return _embeddings_model.embed_documents(texts)
+
+
 def _slug(name: str) -> str:
     """Convert a name to a safe SurrealDB record ID slug."""
     return re.sub(r"[^a-z0-9_]", "_", name.lower().strip())
@@ -40,10 +47,11 @@ def store_reflection_record(conn: Surreal, text: str, daily_prompt: str | None =
 
 
 @traceable(run_type="tool", name="upsert_pattern")
-def upsert_pattern(conn: Surreal, name: str, category: str, description: str, user_id: str | None = None) -> str:
+def upsert_pattern(conn: Surreal, name: str, category: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
     name = name.strip().lower()
     category = category.strip().lower()
-    embedding = _embed(f"{name}: {description}")
+    if embedding is None:
+        embedding = _embed(f"{name}: {description}")
     result = conn.query(
         """UPDATE pattern SET
             name = $name,
@@ -64,8 +72,9 @@ def upsert_pattern(conn: Surreal, name: str, category: str, description: str, us
 
 
 @traceable(run_type="tool", name="upsert_theme")
-def upsert_theme(conn: Surreal, name: str, description: str, user_id: str | None = None) -> str:
-    embedding = _embed(f"{name}: {description}")
+def upsert_theme(conn: Surreal, name: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
+    if embedding is None:
+        embedding = _embed(f"{name}: {description}")
     result = conn.query(
         "UPDATE theme SET name = $name, description = $description, embedding = $embedding WHERE name = $name AND user_id = $user_id",
         {"name": name, "description": description, "embedding": embedding, "user_id": user_id},
@@ -79,10 +88,11 @@ def upsert_theme(conn: Surreal, name: str, description: str, user_id: str | None
 
 
 @traceable(run_type="tool", name="upsert_ifs_part")
-def upsert_ifs_part(conn: Surreal, name: str, role: str, description: str, user_id: str | None = None) -> str:
+def upsert_ifs_part(conn: Surreal, name: str, role: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
     name = name.strip().lower()
     role = role.strip().lower()
-    embedding = _embed(f"IFS {role}: {name} — {description}")
+    if embedding is None:
+        embedding = _embed(f"IFS {role}: {name} — {description}")
     result = conn.query(
         """UPDATE ifs_part SET
             name = $name,
@@ -103,11 +113,12 @@ def upsert_ifs_part(conn: Surreal, name: str, role: str, description: str, user_
 
 
 @traceable(run_type="tool", name="upsert_schema")
-def upsert_schema(conn: Surreal, name: str, domain: str, coping_style: str, description: str, user_id: str | None = None) -> str:
+def upsert_schema(conn: Surreal, name: str, domain: str, coping_style: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
     name = name.strip().lower()
     domain = domain.strip().lower()
     coping_style = coping_style.strip().lower()
-    embedding = _embed(f"Schema {name} ({domain}): {description}")
+    if embedding is None:
+        embedding = _embed(f"Schema {name} ({domain}): {description}")
     result = conn.query(
         """UPDATE schema_pattern SET
             name = $name,
@@ -143,9 +154,10 @@ def upsert_emotion(conn: Surreal, name: str, valence: str, intensity: float, use
 
 
 @traceable(run_type="tool", name="upsert_person")
-def upsert_person(conn: Surreal, name: str, relationship: str, description: str, user_id: str | None = None) -> str:
+def upsert_person(conn: Surreal, name: str, relationship: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
     name = name.strip().title()  # "mum" and "Mum" -> "Mum"
-    embedding = _embed(f"{name} ({relationship}): {description}")
+    if embedding is None:
+        embedding = _embed(f"{name} ({relationship}): {description}")
     result = conn.query(
         """UPDATE person SET
             name = $name,
@@ -179,6 +191,130 @@ def upsert_body_signal(conn: Surreal, name: str, location: str, user_id: str | N
     return str(result[0]["id"])
 
 
+@traceable(run_type="tool", name="batch_upsert_entities")
+def batch_upsert_entities(conn: Surreal, extracted: dict, user_id: str | None = None) -> dict:
+    """Upsert all extracted entities with a single batched embedding call.
+
+    Collects embedding texts from all embeddable entity types, calls
+    _embed_batch() once, then distributes the pre-computed embeddings
+    to individual upsert functions. Emotions and body signals (which
+    have no embeddings) are upserted directly.
+
+    Returns a dict of ID lists keyed by entity type.
+    """
+    # -- 1. Collect texts that need embeddings --------------------------------
+    embed_texts: list[str] = []
+    # Track (entity_type, index_in_extracted_list) for each text so we can
+    # distribute embeddings back after the batch call.
+    embed_map: list[tuple[str, int]] = []
+
+    for i, p in enumerate(extracted.get("patterns", [])):
+        name = p["name"].strip().lower()
+        embed_texts.append(f"{name}: {p['description']}")
+        embed_map.append(("pattern", i))
+
+    for i, t in enumerate(extracted.get("themes", [])):
+        embed_texts.append(f"{t['name']}: {t['description']}")
+        embed_map.append(("theme", i))
+
+    for i, part in enumerate(extracted.get("ifs_parts", [])):
+        name = part["name"].strip().lower()
+        role = part["role"].strip().lower()
+        embed_texts.append(f"IFS {role}: {name} — {part['description']}")
+        embed_map.append(("ifs_part", i))
+
+    for i, s in enumerate(extracted.get("schemas", [])):
+        name = s["name"].strip().lower()
+        domain = s["domain"].strip().lower()
+        embed_texts.append(f"Schema {name} ({domain}): {s['description']}")
+        embed_map.append(("schema", i))
+
+    for i, p in enumerate(extracted.get("people", [])):
+        name = p["name"].strip().title()
+        embed_texts.append(f"{name} ({p['relationship']}): {p.get('description', '')}")
+        embed_map.append(("person", i))
+
+    # -- 2. Single batched embedding call -------------------------------------
+    all_embeddings = _embed_batch(embed_texts) if embed_texts else []
+
+    # Build lookup: (entity_type, index) -> embedding vector
+    embedding_lookup: dict[tuple[str, int], list[float] | None] = {}
+    for idx, (etype, eidx) in enumerate(embed_map):
+        embedding_lookup[(etype, eidx)] = all_embeddings[idx]
+
+    # -- 3. Upsert each entity type with pre-computed embeddings --------------
+    pattern_ids = []
+    for i, p in enumerate(extracted.get("patterns", [])):
+        pid = upsert_pattern(
+            conn, p["name"], p["category"], p["description"],
+            user_id=user_id,
+            embedding=embedding_lookup.get(("pattern", i)),
+        )
+        pattern_ids.append(pid)
+
+    theme_ids = []
+    for i, t in enumerate(extracted.get("themes", [])):
+        tid = upsert_theme(
+            conn, t["name"], t["description"],
+            user_id=user_id,
+            embedding=embedding_lookup.get(("theme", i)),
+        )
+        theme_ids.append(tid)
+
+    emotion_ids = []
+    for e in extracted.get("emotions", []):
+        eid = upsert_emotion(
+            conn, e["name"], e["valence"], e["intensity"],
+            user_id=user_id,
+        )
+        emotion_ids.append(eid)
+
+    ifs_part_ids = []
+    for i, part in enumerate(extracted.get("ifs_parts", [])):
+        partid = upsert_ifs_part(
+            conn, part["name"], part["role"], part["description"],
+            user_id=user_id,
+            embedding=embedding_lookup.get(("ifs_part", i)),
+        )
+        ifs_part_ids.append(partid)
+
+    schema_ids = []
+    for i, s in enumerate(extracted.get("schemas", [])):
+        sid = upsert_schema(
+            conn, s["name"], s["domain"], s.get("coping_style", "none"), s["description"],
+            user_id=user_id,
+            embedding=embedding_lookup.get(("schema", i)),
+        )
+        schema_ids.append(sid)
+
+    person_ids = []
+    for i, p in enumerate(extracted.get("people", [])):
+        pid = upsert_person(
+            conn, p["name"], p["relationship"], p.get("description", ""),
+            user_id=user_id,
+            embedding=embedding_lookup.get(("person", i)),
+        )
+        person_ids.append(pid)
+
+    body_signal_ids = []
+    for b in extracted.get("body_signals", []):
+        bid = upsert_body_signal(
+            conn, b["name"], b.get("location", "other"),
+            user_id=user_id,
+        )
+        body_signal_ids.append(bid)
+
+    return {
+        "pattern_ids": pattern_ids,
+        "theme_ids": theme_ids,
+        "emotion_ids": emotion_ids,
+        "ifs_part_ids": ifs_part_ids,
+        "schema_ids": schema_ids,
+        "person_ids": person_ids,
+        "body_signal_ids": body_signal_ids,
+    }
+
+
 @traceable(run_type="tool", name="create_edges")
 def create_edges(
     conn: Surreal,
@@ -193,27 +329,64 @@ def create_edges(
     body_signal_ids: list[str] | None = None,
 ):
     """Create all graph edges for a reflection."""
-    # reflection -> reveals -> pattern
+    BATCH_SIZE = 50
+    statements: list[str] = []
+
+    # reflection -> reveals -> pattern (with strength metadata)
     for i, pid in enumerate(pattern_ids):
         strength = extracted["patterns"][i].get("strength", 1.0) if i < len(extracted["patterns"]) else 1.0
-        conn.query(
-            f"RELATE {reflection_id}->reveals->{pid} SET strength = $strength",
-            {"strength": strength},
+        statements.append(
+            f"RELATE {reflection_id}->reveals->{pid} SET strength = {strength}"
         )
 
-    # reflection -> expresses -> emotion
+    # reflection -> expresses -> emotion (with intensity metadata)
     for i, eid in enumerate(emotion_ids):
         intensity = extracted["emotions"][i].get("intensity", 0.5) if i < len(extracted["emotions"]) else 0.5
-        conn.query(
-            f"RELATE {reflection_id}->expresses->{eid} SET intensity = $intensity",
-            {"intensity": intensity},
+        statements.append(
+            f"RELATE {reflection_id}->expresses->{eid} SET intensity = {intensity}"
         )
 
     # reflection -> about -> theme
     for tid in theme_ids:
-        conn.query(f"RELATE {reflection_id}->about->{tid}")
+        statements.append(f"RELATE {reflection_id}->about->{tid}")
 
-    # pattern co-occurrence edges
+    # emotion -> triggered_by -> theme
+    for eid in emotion_ids:
+        for tid in theme_ids:
+            statements.append(f"RELATE {eid}->triggered_by->{tid}")
+
+    # reflection -> activates -> ifs_part
+    for part_id in (ifs_part_ids or []):
+        statements.append(f"RELATE {reflection_id}->activates->{part_id}")
+
+    # reflection -> triggers_schema -> schema_pattern
+    for sid in (schema_ids or []):
+        statements.append(f"RELATE {reflection_id}->triggers_schema->{sid}")
+
+    # ifs_part -> protects_against -> schema_pattern
+    for part_id in (ifs_part_ids or []):
+        for sid in (schema_ids or []):
+            statements.append(f"RELATE {part_id}->protects_against->{sid}")
+
+    # reflection -> mentions -> person
+    for pid in (person_ids or []):
+        statements.append(f"RELATE {reflection_id}->mentions->{pid}")
+
+    # person -> triggers_pattern -> pattern
+    for pid in (person_ids or []):
+        for pat_id in pattern_ids:
+            statements.append(f"RELATE {pid}->triggers_pattern->{pat_id}")
+
+    # reflection -> feels_in_body -> body_signal
+    for bid in (body_signal_ids or []):
+        statements.append(f"RELATE {reflection_id}->feels_in_body->{bid}")
+
+    # Execute simple RELATE statements in batches
+    for i in range(0, len(statements), BATCH_SIZE):
+        batch = statements[i : i + BATCH_SIZE]
+        conn.query("; ".join(batch))
+
+    # Pattern co-occurrence edges (need conditional logic, kept as individual queries)
     for i, p1 in enumerate(pattern_ids):
         for p2 in pattern_ids[i + 1:]:
             existing = conn.query(
@@ -227,37 +400,6 @@ def create_edges(
                 conn.query(
                     f"RELATE {p1}->co_occurs_with->{p2} SET count = 1"
                 )
-
-    # emotion -> triggered_by -> theme
-    for eid in emotion_ids:
-        for tid in theme_ids:
-            conn.query(f"RELATE {eid}->triggered_by->{tid}")
-
-    # reflection -> activates -> ifs_part
-    for part_id in (ifs_part_ids or []):
-        conn.query(f"RELATE {reflection_id}->activates->{part_id}")
-
-    # reflection -> triggers_schema -> schema_pattern
-    for sid in (schema_ids or []):
-        conn.query(f"RELATE {reflection_id}->triggers_schema->{sid}")
-
-    # ifs_part -> protects_against -> schema_pattern (parts often protect against schema pain)
-    for part_id in (ifs_part_ids or []):
-        for sid in (schema_ids or []):
-            conn.query(f"RELATE {part_id}->protects_against->{sid}")
-
-    # reflection -> mentions -> person
-    for pid in (person_ids or []):
-        conn.query(f"RELATE {reflection_id}->mentions->{pid}")
-
-    # person -> triggers_pattern -> pattern (link people to patterns they trigger)
-    for pid in (person_ids or []):
-        for pat_id in pattern_ids:
-            conn.query(f"RELATE {pid}->triggers_pattern->{pat_id}")
-
-    # reflection -> feels_in_body -> body_signal
-    for bid in (body_signal_ids or []):
-        conn.query(f"RELATE {reflection_id}->feels_in_body->{bid}")
 
 
 # ──────────────────────────────────────────────

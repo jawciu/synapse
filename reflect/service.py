@@ -92,6 +92,77 @@ def run_reflection_pipeline(
     }
 
 
+_NODE_LABELS = {
+    "store_reflection": "Storing your reflection...",
+    "extract_patterns": "Analysing patterns...",
+    "update_graph": "Building your graph...",
+    "query_graph": "Finding connections...",
+    "generate_insights": "Pulling insights...",
+    "generate_followups": "Creating follow-up questions...",
+}
+
+
+async def stream_reflection_pipeline(
+    reflection_text: str,
+    daily_prompt: str | None,
+    thread_id: str | None,
+    source: str | None = None,
+    user_id: str | None = None,
+) -> AsyncGenerator[str, None]:
+    """Yield SSE events as the reflection pipeline progresses through nodes."""
+    graph = _ensure_graph()
+    _init()
+
+    active_thread = _normalize_thread_id(thread_id, "reflection-session")
+    active_source = _normalize_reflection_source(source)
+
+    yield f"data: {json.dumps({'type': 'thread_id', 'content': active_thread})}\n\n"
+
+    final_result = None
+    seen_nodes: set[str] = set()
+
+    async for event in graph.astream_events(
+        {
+            "reflection_text": reflection_text,
+            "daily_prompt": daily_prompt,
+            "source": active_source,
+            "user_id": user_id,
+            "messages": [],
+        },
+        config={"configurable": {"thread_id": active_thread}},
+        version="v2",
+    ):
+        kind = event.get("event", "")
+        name = event.get("name", "")
+
+        # Emit progress when a node starts
+        if kind == "on_chain_start" and name in _NODE_LABELS and name not in seen_nodes:
+            seen_nodes.add(name)
+            yield f"data: {json.dumps({'type': 'progress', 'node': name, 'message': _NODE_LABELS[name]})}\n\n"
+
+        # Capture final state
+        if kind == "on_chain_end" and name == "LangGraph":
+            final_result = event.get("data", {}).get("output", {})
+
+    if final_result is None:
+        # Fallback: run synchronously if streaming didn't capture output
+        result = graph.invoke(
+            {
+                "reflection_text": reflection_text,
+                "daily_prompt": daily_prompt,
+                "source": active_source,
+                "user_id": user_id,
+                "messages": [],
+            },
+            config={"configurable": {"thread_id": active_thread}},
+        )
+        final_result = result
+
+    payload = {"thread_id": active_thread, "result": final_result}
+    yield f"data: {json.dumps({'type': 'result', 'content': payload}, default=str)}\n\n"
+    yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
+
+
 def run_chat(message: str, thread_id: str | None, user_id: str | None = None) -> dict[str, Any]:
     _init()
     active_thread = _normalize_thread_id(thread_id, "chat-session")
