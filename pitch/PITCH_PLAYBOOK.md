@@ -176,11 +176,19 @@ Use this block during rehearsal or live demo troubleshooting.
 ### 1) Discover user cohorts
 
 ```sql
-SELECT user_id, count() AS reflections
-FROM reflection
-GROUP BY user_id
+SELECT
+  type::record(user_id) AS id,
+  user_id,
+  reflections
+FROM (
+  SELECT user_id, count() AS reflections
+  FROM reflection
+  GROUP BY user_id
+)
 ORDER BY reflections DESC;
 ```
+
+Use this to find the heaviest cohort quickly. In Surrealist graph mode, select one returned row (it now includes a concrete `id`) before moving to query 2/3/4 for linked graph views.
 
 ### 2) Reflection graph (all users)
 

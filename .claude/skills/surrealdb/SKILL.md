@@ -66,9 +66,15 @@ Use this skill when changing SurrealDB schema, graph logic, or semantic retrieva
 ### Find available cohorts
 
 ```sql
-SELECT user_id, count() AS reflections
-FROM reflection
-GROUP BY user_id
+SELECT
+  type::record(user_id) AS id,
+  user_id,
+  reflections
+FROM (
+  SELECT user_id, count() AS reflections
+  FROM reflection
+  GROUP BY user_id
+)
 ORDER BY reflections DESC;
 ```
 
