@@ -38,6 +38,8 @@ The repo is small but mostly complete as a demo:
 - Public frontend demo is currently available at `https://synapse-frontend-vdmo.onrender.com/`.
 - Public Telegram bot handle is `@synapse_helper_bot` (`https://t.me/synapse_helper_bot`).
 - Telegram `/link` flow now explicitly clears stale registration state, prioritizes link-state message handling over registration, and enforces one Telegram ID per account by clearing prior mappings before relinking.
+- Shared SurrealDB graph connection is now self-healed on each graph-init check, so dashboard/chat/reflection calls can recover from transient websocket idle-timeout disconnects without requiring a full restart.
+- Dashboard and people/reflections read paths now route all DB queries through a reconnect-then-retry helper, so a stale SurrealDB connection is retried once before returning a 500.
 - Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.

@@ -55,6 +55,15 @@ def _init(force_reconnect=False):
         embeddings = get_embeddings()
         set_embeddings_model(embeddings)
         _vector_store = get_vector_store(_conn, embeddings)
+        return
+
+    # Keep the shared websocket connection healthy across long-running deployments.
+    # SurrealDB can close idle websocket connections; a reconnect here prevents
+    # transient "keepalive ping timeout" failures on next dashboard/chat call.
+    try:
+        _conn.query("SELECT 1")
+    except Exception:
+        _init(force_reconnect=True)
 
 
 def get_conn_and_vector_store():
