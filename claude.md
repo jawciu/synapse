@@ -42,6 +42,7 @@ The repo is small but mostly complete as a demo:
 - Dashboard and people/reflections read paths now route DB calls through a reconnect-then-retry helper that reuses the refreshed connection object correctly.
 - Dashboard aggregation now avoids N+1 edge-count queries (emotion/theme mentions and people trigger-link retrieval are batched), and the insights view now shows an explicit loading state instead of rendering empty-state tiles while data is still in flight.
 - Initial authenticated app boot now fetches only the daily prompt; dashboard/reflection-source payloads are deferred until the user opens `insights`, improving perceived startup responsiveness.
+- A minimal `pytest` smoke suite now exists under `tests/test_smoke.py` covering auth utility roundtrips and source/thread normalization helpers.
 - Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
 - The local `surrealdb` skill now includes Surrealist-specific demo/query guidance: `ORDER BY` projection rule, graph-view cluster interpretation, `FETCH`-first traversal patterns, and `user_id` scoping modes (`$uid` and `NONE` seed data).
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.

@@ -18,4 +18,5 @@ dependencies = [
     "langchain-anthropic>=1.2.0",
     "bcrypt>=4.0.0",
     "pyjwt>=2.8.0",
+    "pytest>=8.4.0",
 ]
