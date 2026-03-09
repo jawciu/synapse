@@ -434,6 +434,7 @@ function App() {
   const fetchDashboard = async () => {
     try {
       const res = await fetch(`${API_URL}/api/dashboard?limit=8`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`Dashboard fetch failed: ${res.status}`);
       const payload = (await res.json()) as DashboardPayload;
       setDashboard(payload);
     } catch {
@@ -832,7 +833,7 @@ function App() {
   }, [allPatterns]);
 
   const topPatternPairs = useMemo(() => {
-    return (dashboard?.summary.top_co_occurrences ?? [])
+    return (dashboard?.summary?.top_co_occurrences ?? [])
       .map((entry) => ({
         ...entry,
         label: `${entry.pattern_a} + ${entry.pattern_b}`,
@@ -861,7 +862,7 @@ function App() {
     if (!dashboard) {
       return [] as EmotionEntry[];
     }
-    return [...dashboard.emotions]
+    return [...(dashboard.emotions ?? [])]
       .map((emotion) => ({
         ...emotion,
         mentions: Number(emotion.mentions || 0),
@@ -916,7 +917,7 @@ function App() {
     if (!dashboard) {
       return [] as ThemeEntry[];
     }
-    return [...dashboard.themes]
+    return [...(dashboard.themes ?? [])]
       .map((theme) => ({
         ...theme,
         name: String(theme.name || "").trim(),
@@ -946,7 +947,7 @@ function App() {
     if (!dashboard) {
       return [] as BodySignal[];
     }
-    return [...dashboard.body_signals]
+    return [...(dashboard.body_signals ?? [])]
       .map((signal) => ({
         ...signal,
         name: String(signal.name || "").trim(),

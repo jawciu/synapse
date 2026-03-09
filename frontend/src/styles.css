@@ -1356,6 +1356,12 @@ textarea {
   text-transform: lowercase;
 }
 
+@media (max-width: 600px) {
+  .topbar-logotype {
+    display: none;
+  }
+}
+
 .topbar-right {
   position: relative;
 }
