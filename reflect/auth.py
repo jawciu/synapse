@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -10,7 +11,15 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from surrealdb import Surreal
 
-_JWT_SECRET = os.getenv("JWT_SECRET", "changeme")
+_jwt_env = os.getenv("JWT_SECRET", "").strip()
+if not _jwt_env:
+    raise RuntimeError(
+        "JWT_SECRET environment variable is not set. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
+if len(_jwt_env) < 32:
+    raise RuntimeError("JWT_SECRET must be at least 32 characters for adequate security.")
+_JWT_SECRET = _jwt_env
 _JWT_ALGORITHM = "HS256"
 _JWT_EXPIRY_DAYS = 7
 
