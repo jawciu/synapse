@@ -412,6 +412,18 @@ Services:
 
 ---
 
+## Roadmap
+
+- **More secure authentication:** add refresh-token rotation, email verification, optional MFA, and stronger session management controls.
+- **Production-grade privacy controls:** add data export/delete workflows, retention settings, and auditable access logs.
+- **Reliability hardening:** add retry/backoff around model and DB calls, plus clearer degraded-mode responses when providers fail.
+- **Testing and CI:** add automated unit/integration tests for extraction parsing, graph queries, and core API routes.
+- **Observability upgrades:** add latency/error dashboards, alerting thresholds, and trace-linked incident debugging workflows.
+- **Schema migrations:** move from startup schema init to versioned migrations for safer deployments.
+- **Expanded reflection intelligence:** improve longitudinal trend summaries and better weekly/monthly pattern change views.
+
+---
+
 ## Local setup and run (keep this section at the bottom)
 
 ### 1) Prerequisites

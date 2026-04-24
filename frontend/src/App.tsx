@@ -385,6 +385,8 @@ function App() {
   const [lastReflection, setLastReflection] = useState<ReflectionPayload | null>(null);
 
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
+  const [dashboardBusy, setDashboardBusy] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
   const [liveTime, setLiveTime] = useState(() => new Date());
 
   const [chatInput, setChatInput] = useState("");
@@ -406,7 +408,6 @@ function App() {
     if (!authToken) return;
     const initialize = async () => {
       await fetchPrompt();
-      await fetchDashboard();
     };
 
     initialize();
@@ -432,29 +433,20 @@ function App() {
   };
 
   const fetchDashboard = async () => {
+    setDashboardBusy(true);
+    setDashboardError("");
     try {
       const res = await fetch(`${API_URL}/api/dashboard?limit=8`, { headers: authHeaders() });
-      if (!res.ok) throw new Error(`Dashboard fetch failed: ${res.status}`);
-      const payload = (await res.json()) as DashboardPayload;
-      setDashboard(payload);
-    } catch {
-      setDashboard({
-        patterns_by_category: { cognitive: [], emotional: [], relational: [], behavioral: [] },
-        themes: [],
-        ifs_parts: [],
-        schemas: [],
-        emotions: [],
-        people: [],
-        body_signals: [],
-        summary: {
-          total_reflections: 0,
-          total_patterns: 0,
-          total_emotions: 0,
-          total_themes: 0,
-          total_people: 0,
-          total_body_signals: 0,
-        },
-      });
+      const payload = (await res.json()) as DashboardPayload | { detail?: string };
+      if (!res.ok) {
+        const errorMessage = (payload as { detail?: string }).detail;
+        throw new Error(errorMessage || "Unable to load insights.");
+      }
+      setDashboard(payload as DashboardPayload);
+    } catch (error) {
+      setDashboardError((error as Error).message || "Could not load insights.");
+    } finally {
+      setDashboardBusy(false);
     }
   };
 
@@ -1013,7 +1005,16 @@ function App() {
             <button
               type="button"
               className={`topbar-nav-link ${activeTab === "insights" ? "active" : ""}`}
-              onClick={() => { setActiveTab("insights"); setSelectedTotal(null); void fetchDashboard(); void fetchReflectionSources(); }}
+              onClick={() => {
+                setActiveTab("insights");
+                setSelectedTotal(null);
+                if (!dashboard && !dashboardBusy) {
+                  void fetchDashboard();
+                }
+                if (reflectionSources.length === 0 && !sourcesBusy) {
+                  void fetchReflectionSources();
+                }
+              }}
             >
               insights
             </button>
@@ -1045,6 +1046,13 @@ function App() {
         {activeTab === "insights" ? (
           <>
             {!selectedTotal ? (
+              dashboardBusy && !dashboard ? (
+                <section className="card panel">
+                  <p className="muted">Loading insights...</p>
+                </section>
+              ) : (
+              <>
+              {dashboardError ? <p className="error">{dashboardError}</p> : null}
               <section className="insights-tiles">
                 {/* Reflections tile */}
                 <div
@@ -1208,6 +1216,8 @@ function App() {
                   </div>
                 </div>
               </section>
+              </>
+              )
             ) : (
               <section className="card panel">
                 <div className="panel-head">

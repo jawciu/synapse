@@ -37,13 +37,24 @@ The repo is small but mostly complete as a demo:
 - Render Blueprint config exists in `render.yaml` for backend (`synapse-backend`), Telegram worker (`synapse-telegram`), and static frontend (`synapse-frontend`) with `autoDeploy: true` on `main`.
 - Public frontend demo is currently available at `https://synapse-frontend-vdmo.onrender.com/`.
 - Public Telegram bot handle is `@synapse_helper_bot` (`https://t.me/synapse_helper_bot`).
+- Telegram `/link` flow now explicitly clears stale registration state, prioritizes link-state message handling over registration, and enforces one Telegram ID per account by clearing prior mappings before relinking.
+- Shared SurrealDB graph resources now initialize schema once per process (not on every reconnect), reducing reconnect overhead.
+- Dashboard and people/reflections read paths now route DB calls through a reconnect-then-retry helper that reuses the refreshed connection object correctly.
+- Dashboard aggregation now avoids N+1 edge-count queries (emotion/theme mentions and people trigger-link retrieval are batched), and the insights view now shows an explicit loading state instead of rendering empty-state tiles while data is still in flight.
+- Initial authenticated app boot now fetches only the daily prompt; dashboard/reflection-source payloads are deferred until the user opens `insights`, improving perceived startup responsiveness.
+- A minimal `pytest` smoke suite now exists under `tests/test_smoke.py` covering auth utility roundtrips and source/thread normalization helpers.
 - Local reusable skill pack now exists under `.claude/skills/` in agentskills.io-style layout (`SKILL.md` + `agents/openai.yaml`) for `langchain`, `surrealdb`, `vite-typescript`, and `python`.
+- The local `surrealdb` skill now includes Surrealist-specific demo/query guidance: `ORDER BY` projection rule, graph-view cluster interpretation, `FETCH`-first traversal patterns, and `user_id` scoping modes (`$uid` and `NONE` seed data).
+- The pitch playbook + local SurrealDB skill now use a Surrealist-compatible cohort query shape (`type::record(user_id)` via an outer `SELECT`) so query 1 can be selected/visualized before drilling into graph traversals.
 - The reflections source panel supports frontend sort/filter/search controls (by source, date order, and text query) for faster drill-down.
 - Clicking the `people` total now opens a graph-backed people drill-down sourced from `/api/people`, including a key action callout, relationship mix chart, top-triggered-pattern chart, and per-person triggered-pattern details.
 - Clicking `patterns`, `emotions`, `themes`, and `body signals` totals now opens dedicated graph drill-downs (key action + KPI row + charts + item list) instead of a placeholder message.
 - The dedicated `patterns` tab has been removed from the primary tab bar; primary tabs are now `reflect` and `talk` while totals in the top menubar continue to expose source/drill-down panels.
 - The `talk` tab now uses an empty-first UX: a centered question composer appears immediately, and the larger transcript panel is only rendered after the first message is sent.
 - The frontend now ships a branded browser favicon at `frontend/public/favicon.svg`, derived from the shared flower logo path used in `frontend/src/icons.tsx`, and `frontend/index.html` links it via `<link rel="icon" ...>`.
+- Frontend Vite build now uses manual vendor chunk splitting in `frontend/vite.config.ts` (React, markdown, and chart deps separated) to avoid oversized single-bundle warnings.
+- Public README now includes a dedicated `Roadmap` section (secure authentication improvements plus privacy, reliability, testing, observability, migration, and product-intelligence milestones).
+- Pitch playbook now includes a Surrealist query-reference appendix with user-scoped (`user_id`) and seed-data graph query examples for live demo fallback.
 
 What is not present:
 
@@ -74,9 +85,9 @@ What is not present:
 ## Repo map
 
 - [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
-- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, data-security/access-control detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, and local runbook
+- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, data-security/access-control detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, dedicated roadmap milestones, and local runbook
 - [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
-- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): judge-aligned pitch runbook mapped to London hackathon criteria, with 2-minute live/video scripts, fallback paths, and README-backed differentiators
+- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): judge-aligned pitch runbook mapped to London hackathon criteria, with 2-minute live/video scripts, fallback paths, README-backed differentiators, and a Surrealist query-reference appendix for graph demos
 - [.claude/skills/](/Users/ian/dev/synapse/.claude/skills): local agent skills in agentskills.io format (`langchain`, `surrealdb`, `vite-typescript`, `python`)
 - [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml): dependencies and Python version
 - [render.yaml](/Users/ian/dev/synapse/render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`

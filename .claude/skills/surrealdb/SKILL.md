@@ -42,6 +42,117 @@ Use this skill when changing SurrealDB schema, graph logic, or semantic retrieva
 - Test queries against seeded long-tail examples.
 - Validate empty-state behavior and malformed data handling.
 
+## Surrealist-first querying rules (important)
+
+1. Prefer traversal queries that return full records.
+- Use `->edge->table.*` paths from a root table (`reflection`, `person`, `pattern`).
+- Add `FETCH` for relation names so graph view has concrete linked records.
+
+2. SurrealQL ordering rule.
+- When using `ORDER BY field`, include that `field` in `SELECT`.
+- If you get `Missing order idiom ... in statement selection`, add the ordered field to the projection.
+
+3. Understand disconnected graph clusters.
+- In Surrealist graph view, separate blobs usually mean disconnected subgraphs, not "one blob per person."
+- Common cause in this repo: mixed `user_id` cohorts or non-overlapping reflection links.
+
+4. Be explicit about user partitioning in demos.
+- App-written rows use `user_id` values like `app_user:<id>`.
+- Seeded rows from `seed_data.py` are typically `user_id = NONE`.
+- Provide all three query modes when sharing examples: all rows, one `$uid`, and `user_id = NONE`.
+
+## Known-good query templates for this repo
+
+### Find available cohorts
+
+```sql
+SELECT
+  type::record(user_id) AS id,
+  user_id,
+  reflections
+FROM (
+  SELECT user_id, count() AS reflections
+  FROM reflection
+  GROUP BY user_id
+)
+ORDER BY reflections DESC;
+```
+
+### Reflection-centered graph (all users)
+
+```sql
+SELECT
+  id,
+  created_at,
+  ->reveals->pattern.* AS patterns,
+  ->activates->ifs_part.* AS ifs_parts,
+  ->triggers_schema->schema_pattern.* AS schemas,
+  ->expresses->emotion.* AS emotions,
+  ->about->theme.* AS themes,
+  ->mentions->person.* AS people
+FROM reflection
+LIMIT 8
+FETCH reveals, activates, triggers_schema, expresses, about, mentions;
+```
+
+### Reflection graph scoped to one user
+
+```sql
+LET $uid = "app_user:your_user_record_id";
+
+SELECT
+  id,
+  created_at,
+  ->reveals->pattern.* AS patterns,
+  ->activates->ifs_part.* AS ifs_parts,
+  ->triggers_schema->schema_pattern.* AS schemas,
+  ->expresses->emotion.* AS emotions,
+  ->about->theme.* AS themes,
+  ->mentions->person.* AS people
+FROM reflection
+WHERE user_id = $uid
+LIMIT 12
+FETCH reveals, activates, triggers_schema, expresses, about, mentions;
+```
+
+### Reflection graph scoped to seeded data
+
+```sql
+SELECT
+  id,
+  created_at,
+  ->reveals->pattern.* AS patterns,
+  ->activates->ifs_part.* AS ifs_parts,
+  ->triggers_schema->schema_pattern.* AS schemas,
+  ->expresses->emotion.* AS emotions,
+  ->about->theme.* AS themes,
+  ->mentions->person.* AS people
+FROM reflection
+WHERE user_id = NONE
+LIMIT 12
+FETCH reveals, activates, triggers_schema, expresses, about, mentions;
+```
+
+### Edge-only graph view
+
+```sql
+SELECT * FROM reveals LIMIT 120 FETCH in, out;
+SELECT * FROM co_occurs_with LIMIT 120 FETCH in, out;
+SELECT * FROM triggers_pattern LIMIT 120 FETCH in, out;
+SELECT * FROM mentions LIMIT 120 FETCH in, out;
+```
+
+## Demo troubleshooting loop
+
+1. Check data exists.
+- `SELECT count() AS total FROM reflection GROUP ALL;`
+
+2. Check partitions.
+- `SELECT user_id, count() AS reflections FROM reflection GROUP BY user_id;`
+
+3. If graph looks fragmented, run one-user query.
+- Filter by `WHERE user_id = $uid` (or `WHERE user_id = NONE` for seeded data).
+
 ## Patterns to prefer
 
 - Typed graph tables with minimal but sufficient fields
