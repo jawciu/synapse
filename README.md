@@ -150,13 +150,14 @@ We chose Sonnet because extraction quality directly determines graph accuracy �
 3. **Progressive status updates** — what we shipped. The frontend cycles through contextual messages ("Analysing patterns...", "Building your graph...", "Pulling insights...") to keep the user oriented while the backend works. Not a latency fix, but it makes the wait feel purposeful rather than broken.
 
 ### What we optimised (6–10s saved per reflection)
+
 After profiling in LangSmith, we implemented four targeted optimisations that cut **6–10 seconds** from each reflection pipeline run:
-- Batched SurrealDB writes** — grouped `RELATE` statements into batches of 50 per query call instead of issuing them one at a time, cutting dozens of sequential +round-trips
-- **Batched embeddings** — replaced per-entity `embed_query()` calls with a single `embed_documents()` call for all entities in a reflection, reducing OpenAI API +round-trips from 10–20+ down to 1
-- **Parallel insight + follow-up generation** — `generate_insights` and `generate_followups` now fan out from `query_graph` simultaneously instead of running +sequentially, saving one full LLM call's worth of wall time
-- **SSE streaming with real pipeline state** — the frontend now receives Server-Sent Events from `astream_events`, so progress messages ("Extracting patterns...",
-"Building your graph...") reflect actual node execution rather than cycling through placeholder text
- 
+
+- **Batched SurrealDB writes** — grouped `RELATE` statements into batches of 50 per query call instead of issuing them one at a time, cutting dozens of sequential round-trips
+- **Batched embeddings** — replaced per-entity `embed_query()` calls with a single `embed_documents()` call for all entities in a reflection, reducing OpenAI API round-trips from 10–20+ down to 1
+- **Parallel insight + follow-up generation** — `generate_insights` and `generate_followups` now fan out from `query_graph` simultaneously instead of running sequentially, saving one full LLM call's worth of wall time
+- **SSE streaming with real pipeline state** — the frontend now receives Server-Sent Events from `astream_events`, so progress messages ("Extracting patterns...", "Building your graph...") reflect actual node execution rather than cycling through placeholder text
+
 ---
 
 ## What Synapse does today

@@ -16,3 +16,10 @@ frontend/dist/
 # Virtual environments
 .venv
 .env
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Claude Code local worktrees
+.claude/worktrees/
