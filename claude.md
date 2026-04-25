@@ -35,7 +35,7 @@ The repo is small but mostly complete as a demo:
 - Reflection records now track a `source` value (`app`, `telegram_text`, or `voice`) and `/api/reflections` returns it for source attribution in the UI.
 - SurrealDB startup now validates required env vars with clear `RuntimeError` messages; namespace/database default to `main` when unset and also accept `SURREAL_NAMESPACE` / `SURREAL_DATABASE` aliases.
 - Render Blueprint config exists in `render.yaml` for backend (`synapse-backend`), Telegram worker (`synapse-telegram`), and static frontend (`synapse-frontend`) with `autoDeploy: true` on `main`.
-- Public frontend demo is currently available at `https://synapse-frontend-vdmo.onrender.com/`.
+- Public frontend is currently available at `https://synapse-ks93.onrender.com/` (Caro's Render account; replaced the earlier `synapse-frontend-vdmo` URL during deploy ownership transfer).
 - Public Telegram bot handle is `@synapse_helper_bot` (`https://t.me/synapse_helper_bot`).
 - Telegram `/link` flow now explicitly clears stale registration state, prioritizes link-state message handling over registration, and enforces one Telegram ID per account by clearing prior mappings before relinking.
 - Shared SurrealDB graph resources now initialize schema once per process (not on every reconnect), reducing reconnect overhead.
@@ -61,6 +61,46 @@ What is not present:
 - No real test suite.
 - No advanced auth features (for example roles/permissions, admin controls, or external identity providers).
 - No production hardening around failures, retries, schema migrations, or privacy.
+
+## Render service env vars
+
+The frontend and backend deploy as separate Render services and reference each other **cross-referentially**:
+
+- **Backend needs to know which origins are allowed to call it** → set `CORS_ORIGINS` on the backend service to the **frontend** public URL.
+- **Frontend needs to know where the backend lives** → set `VITE_API_URL` on the frontend service to the **backend** public URL.
+
+It feels backwards but it's correct. When you're configuring the backend you type a frontend URL; when you're configuring the frontend you type a backend URL.
+
+### Current public URLs
+
+Find them at the top of each service's page in the Render dashboard. Format is always `https://<service-name>-<random-suffix>.onrender.com`. If a service is deleted and recreated the suffix changes and cross-references must be updated.
+
+- Backend: `https://synapse-backend-wlh2.onrender.com`
+- Frontend: `https://synapse-ks93.onrender.com`
+- Telegram worker: no public URL (background process)
+
+### Required env vars per service
+
+**`synapse-backend` (web service)**
+
+- `CORS_ORIGINS` = `https://synapse-ks93.onrender.com,http://localhost:5173`
+- All secrets from [.env.example](/Users/ian/dev/synapse/.env.example): `SURREAL_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LANGCHAIN_*`, `JWT_SECRET` (must be ≥32 chars or the app fails fast at import).
+
+**`synapse-frontend` (static site)**
+
+- `VITE_API_URL` = `https://synapse-backend-wlh2.onrender.com`
+
+**`synapse-telegram` (worker)**
+
+- All secrets from [.env.example](/Users/ian/dev/synapse/.env.example), including `TELEGRAM_BOT_TOKEN`.
+
+### Gotchas worth remembering
+
+- **No trailing slashes** on URL values. Correct: `https://synapse-ks93.onrender.com`. Wrong: `https://synapse-ks93.onrender.com/`.
+- **`VITE_API_URL` is read at build time, not runtime.** After changing it, trigger a Manual Deploy of the frontend so Vite re-bakes the URL into the built assets. Saving the env var alone may not retrigger the build. Hard-refresh the browser (Cmd+Shift+R) to bust cache.
+- **Missing/incorrect `CORS_ORIGINS`** does not cause a loud failure. The backend returns the correct status and JSON, but omits the `access-control-allow-origin` response header for the unrecognised origin. The browser then silently strips the response body before the frontend can read it, and `res.json()` throws "Unexpected end of JSON input" — which looks like a frontend bug but is actually a backend CORS misconfiguration.
+- **Backend env-var changes auto-redeploy** the web service on Render. Static site env-var changes (frontend) sometimes do not — trigger Manual Deploy if in doubt.
+- The Render free tier spins web services down after 15 min of inactivity; first request after idle takes ~30s. Background workers may need a paid Starter instance ($7/mo).
 
 ## Tech stack
 

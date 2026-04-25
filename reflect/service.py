@@ -4,7 +4,7 @@ import json
 import uuid
 from collections import defaultdict
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -216,7 +216,7 @@ def run_chat(message: str, thread_id: str | None, user_id: str | None = None) ->
 
     return {
         "thread_id": active_thread,
-        "messages": [message.__dict__ for message in messages],
+        "messages": [asdict(message) for message in messages],
     }
 
 
