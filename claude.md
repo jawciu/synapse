@@ -18,7 +18,7 @@ The product intent is:
 
 The product should be treated as `synapse` in the UI and agent-facing docs. Older planning language still mentions `ReflectGraph`, but that is now legacy naming.
 
-The strongest source of product intent is [PLAN.md](/Users/ian/dev/synapse/PLAN.md). The strongest source of truth for actual behavior is the code under [reflect/](/Users/ian/dev/synapse/reflect).
+The strongest source of product intent is [PLAN.md](PLAN.md). The strongest source of truth for actual behavior is the code under [reflect/](reflect).
 
 ## Current implementation status
 
@@ -36,7 +36,7 @@ The repo is small but mostly complete as a demo:
 - SurrealDB startup now validates required env vars with clear `RuntimeError` messages; namespace/database default to `main` when unset and also accept `SURREAL_NAMESPACE` / `SURREAL_DATABASE` aliases.
 - Render Blueprint config exists in `render.yaml` for backend (`synapse-backend`), Telegram worker (`synapse-telegram`), and static frontend (`synapse-frontend`) with `autoDeploy: true` on `main`.
 - Public frontend is currently available at `https://synapse-ks93.onrender.com/` (Caro's Render account; replaced the earlier `synapse-frontend-vdmo` URL during deploy ownership transfer).
-- Public Telegram bot handle is `@synapse_helper_bot` (`https://t.me/synapse_helper_bot`).
+- Public Telegram bot handle is `@synapsehelperbot` (`https://t.me/synapsehelperbot`).
 - Telegram `/link` flow now explicitly clears stale registration state, prioritizes link-state message handling over registration, and enforces one Telegram ID per account by clearing prior mappings before relinking.
 - Shared SurrealDB graph resources now initialize schema once per process (not on every reconnect), reducing reconnect overhead.
 - Dashboard and people/reflections read paths now route DB calls through a reconnect-then-retry helper that reuses the refreshed connection object correctly.
@@ -58,9 +58,10 @@ The repo is small but mostly complete as a demo:
 
 What is not present:
 
-- No real test suite.
-- No advanced auth features (for example roles/permissions, admin controls, or external identity providers).
-- No production hardening around failures, retries, schema migrations, or privacy.
+- No broad test coverage (a minimal `pytest` smoke suite exists at [tests/test_smoke.py](tests/test_smoke.py); integration and end-to-end tests do not).
+- No roles/permissions, admin controls, SSO, or 2FA. Auth covers email/password login, JWT sessions, password reset, and Telegram account linking — nothing beyond.
+- No production hardening around retries, schema migrations, queueing, or rate limiting.
+- No encryption at rest for reflection text or embeddings — sensitive content lives in plaintext in SurrealDB.
 
 ## Render service env vars
 
@@ -84,7 +85,7 @@ Find them at the top of each service's page in the Render dashboard. Format is a
 **`synapse-backend` (web service)**
 
 - `CORS_ORIGINS` = `https://synapse-ks93.onrender.com,http://localhost:5173`
-- All secrets from [.env.example](/Users/ian/dev/synapse/.env.example): `SURREAL_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LANGCHAIN_*`, `JWT_SECRET` (must be ≥32 chars or the app fails fast at import).
+- All secrets from [.env.example](.env.example): `SURREAL_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LANGCHAIN_*`, `JWT_SECRET` (must be ≥32 chars or the app fails fast at import).
 
 **`synapse-frontend` (static site)**
 
@@ -92,7 +93,7 @@ Find them at the top of each service's page in the Render dashboard. Format is a
 
 **`synapse-telegram` (worker)**
 
-- All secrets from [.env.example](/Users/ian/dev/synapse/.env.example), including `TELEGRAM_BOT_TOKEN`.
+- All secrets from [.env.example](.env.example), including `TELEGRAM_BOT_TOKEN`.
 
 ### Gotchas worth remembering
 
@@ -104,13 +105,13 @@ Find them at the top of each service's page in the Render dashboard. Format is a
 
 ## Tech stack
 
-- Python 3.12+ via [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml)
+- Python 3.12+ via [pyproject.toml](pyproject.toml)
 - FastAPI for API transport (`api_server.py`)
 - TypeScript React frontend (Vite) in `frontend/` for the primary product UI
 - LangGraph / LangChain for orchestration and agents
 - OpenAI:
   - `gpt-5-mini` for insights and follow-up generation
-  - `gpt-4o-mini` in [main.py](/Users/ian/dev/synapse/main.py) (scratch smoke test) and Telegram nudge generation
+  - `gpt-4o-mini` in [main.py](main.py) (scratch smoke test) and Telegram nudge generation
   - `whisper-1` for Telegram voice-note transcription
   - `text-embedding-3-small` for embeddings
 - Anthropic:
@@ -124,28 +125,28 @@ Find them at the top of each service's page in the Render dashboard. Format is a
 
 ## Repo map
 
-- [PLAN.md](/Users/ian/dev/synapse/PLAN.md): intended architecture and hackathon framing
-- [README.md](/Users/ian/dev/synapse/README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, data-security/access-control detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, dedicated roadmap milestones, and local runbook
-- [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
-- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md): judge-aligned pitch runbook mapped to London hackathon criteria, with 2-minute live/video scripts, fallback paths, README-backed differentiators, and a Surrealist query-reference appendix for graph demos
-- [.claude/skills/](/Users/ian/dev/synapse/.claude/skills): local agent skills in agentskills.io format (`langchain`, `surrealdb`, `vite-typescript`, `python`)
-- [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml): dependencies and Python version
-- [render.yaml](/Users/ian/dev/synapse/render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`
-- [main.py](/Users/ian/dev/synapse/main.py): simple OpenAI smoke test, not the product entrypoint
-- [seed_data.py](/Users/ian/dev/synapse/seed_data.py): runs the full reflection pipeline over the sample corpus
-- [langchain_surreal.py](/Users/ian/dev/synapse/langchain_surreal.py): standalone vector-store experiment / proof of concept
-- [surreal_test.py](/Users/ian/dev/synapse/surreal_test.py): standalone SurrealDB CRUD experiment
-- [test.py](/Users/ian/dev/synapse/test.py): trivial environment sanity check
-- [data/sample_reflections/](/Users/ian/dev/synapse/data/sample_reflections): 18 curated seed reflections
-- [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py): env loading, Surreal connection, embedding model, vector store creation, schema setup, Surreal v3 patching
-- [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py): graph CRUD, edge creation, graph queries, and all agent tools
-- [reflect/extraction.py](/Users/ian/dev/synapse/reflect/extraction.py): extraction ReAct agent wrapper and JSON parsing
-- [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py): 6-node LangGraph reflection pipeline
-- [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py): graph Q&A ReAct agent
-- [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py): extraction/chat/insight/follow-up prompts plus daily prompts
-- [api_server.py](/Users/ian/dev/synapse/api_server.py): FastAPI app exposing reflection/chat/dashboard routes, `/api/people` for relationship drill-down analytics, plus `/api/reflections` for reflection source retrieval with source metadata (`app` / `telegram_text` / `voice`)
-- [frontend/](/Users/ian/dev/synapse/frontend): Vite + TypeScript React UI scaffold
-- [frontend/src/icons.tsx](/Users/ian/dev/synapse/frontend/src/icons.tsx): local OSS-style SVG icon components used by the navbar and prompt refresh action
+- [PLAN.md](PLAN.md): intended architecture and hackathon framing
+- [README.md](README.md): public-facing project pitch with user quickstart, psychotherapy-methodology framing (CBT/DBT/IFS/Schema), safeguards/evals detail, data-security/access-control detail, explicit extraction/chat tool-layer detail, Telegram text/voice usage, architecture narrative, dedicated roadmap milestones, and local runbook
+- [london-hackathon-full-details.md](london-hackathon-full-details.md): full event brief and judging/submission details for the London LangChain x SurrealDB hackathon
+- [pitch/PITCH_PLAYBOOK.md](pitch/PITCH_PLAYBOOK.md): judge-aligned pitch runbook mapped to London hackathon criteria, with 2-minute live/video scripts, fallback paths, README-backed differentiators, and a Surrealist query-reference appendix for graph demos
+- [.claude/skills/](.claude/skills): local agent skills in agentskills.io format (`langchain`, `surrealdb`, `vite-typescript`, `python`)
+- [pyproject.toml](pyproject.toml): dependencies and Python version
+- [render.yaml](render.yaml): Render Blueprint for `synapse-backend` web + `synapse-telegram` worker + `synapse-frontend` static service with `autoDeploy: true`
+- [main.py](main.py): simple OpenAI smoke test, not the product entrypoint
+- [seed_data.py](seed_data.py): runs the full reflection pipeline over the sample corpus
+- [langchain_surreal.py](langchain_surreal.py): standalone vector-store experiment / proof of concept
+- [surreal_test.py](surreal_test.py): standalone SurrealDB CRUD experiment
+- [test.py](test.py): trivial environment sanity check
+- [data/sample_reflections/](data/sample_reflections): 18 curated seed reflections
+- [reflect/db.py](reflect/db.py): env loading, Surreal connection, embedding model, vector store creation, schema setup, Surreal v3 patching
+- [reflect/graph_store.py](reflect/graph_store.py): graph CRUD, edge creation, graph queries, and all agent tools
+- [reflect/extraction.py](reflect/extraction.py): extraction ReAct agent wrapper and JSON parsing
+- [reflect/agent.py](reflect/agent.py): 6-node LangGraph reflection pipeline
+- [reflect/chat_agent.py](reflect/chat_agent.py): graph Q&A ReAct agent
+- [reflect/prompts.py](reflect/prompts.py): extraction/chat/insight/follow-up prompts plus daily prompts
+- [api_server.py](api_server.py): FastAPI app exposing reflection/chat/dashboard routes, `/api/people` for relationship drill-down analytics, plus `/api/reflections` for reflection source retrieval with source metadata (`app` / `telegram_text` / `voice`)
+- [frontend/](frontend): Vite + TypeScript React UI scaffold
+- [frontend/src/icons.tsx](frontend/src/icons.tsx): local OSS-style SVG icon components used by the navbar and prompt refresh action
 
 ## Runtime model
 
@@ -153,7 +154,7 @@ There are two distinct agentic systems in the app.
 
 ### 1. Reflection ingestion pipeline
 
-Implemented in [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py).
+Implemented in [reflect/agent.py](reflect/agent.py).
 
 The reflection flow is:
 
@@ -177,7 +178,7 @@ Important details:
 
 ### 2. Ask-your-graph chat agent
 
-Implemented in [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py) using tools created in [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py).
+Implemented in [reflect/chat_agent.py](reflect/chat_agent.py) using tools created in [reflect/graph_store.py](reflect/graph_store.py).
 
 Important details:
 
@@ -206,7 +207,7 @@ When a user submits text in the Reflect tab:
 
 ### Extraction flow
 
-Implemented in [reflect/extraction.py](/Users/ian/dev/synapse/reflect/extraction.py) and driven by `EXTRACTION_SYSTEM_PROMPT` in [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py).
+Implemented in [reflect/extraction.py](reflect/extraction.py) and driven by `EXTRACTION_SYSTEM_PROMPT` in [reflect/prompts.py](reflect/prompts.py).
 
 This is an agentic extraction pattern, not a single raw prompt:
 
@@ -234,7 +235,7 @@ Provider/runtime behavior:
 
 ### Graph update flow
 
-Implemented in [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py) and [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py).
+Implemented in [reflect/agent.py](reflect/agent.py) and [reflect/graph_store.py](reflect/graph_store.py).
 
 The update step:
 
@@ -271,7 +272,7 @@ If the follow-up LLM output cannot be parsed, it falls back to 3 generic questio
 
 ## SurrealDB architecture
 
-Implemented in [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py).
+Implemented in [reflect/db.py](reflect/db.py).
 
 The code assumes environment variables for:
 
@@ -292,11 +293,11 @@ This repo directly patches `langchain_surrealdb.vectorstores` globals to make th
 - uses explicit `COSINE` KNN syntax
 - returns `vector::distance::knn()` as the similarity metric
 
-This is an important implementation detail. If vector search breaks after package upgrades, check [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py) first.
+This is an important implementation detail. If vector search breaks after package upgrades, check [reflect/db.py](reflect/db.py) first.
 
 ## Graph schema
 
-The schema is defined in `SCHEMA_STATEMENTS` in [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py).
+The schema is defined in `SCHEMA_STATEMENTS` in [reflect/db.py](reflect/db.py).
 
 ### Node tables
 
@@ -395,7 +396,7 @@ There is no diagnosis logic. Everything is framed as reflective pattern extracti
 
 ## Query and tool layer
 
-Most graph intelligence lives in [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py).
+Most graph intelligence lives in [reflect/graph_store.py](reflect/graph_store.py).
 
 ### Core CRUD helpers
 
@@ -451,8 +452,8 @@ Most graph intelligence lives in [reflect/graph_store.py](/Users/ian/dev/synapse
 
 Primary implementation is now an API-driven frontend split:
 
-- [api_server.py](/Users/ian/dev/synapse/api_server.py) exposes `/api/*` endpoints.
-- [frontend/](/Users/ian/dev/synapse/frontend) renders the primary interface via React/TypeScript and Recharts.
+- [api_server.py](api_server.py) exposes `/api/*` endpoints.
+- [frontend/](frontend) renders the primary interface via React/TypeScript and Recharts.
 - There is no active Streamlit entrypoint in the product runtime.
 
 Current visual direction targets the TS UI:
@@ -504,7 +505,7 @@ Behavior:
 
 ## Prompts and product tone
 
-Prompt definitions live in [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py).
+Prompt definitions live in [reflect/prompts.py](reflect/prompts.py).
 
 There are four important prompt surfaces:
 
@@ -525,7 +526,7 @@ If you change the therapeutic framing or product tone, update this file.
 
 ## Seed data
 
-The sample corpus in [data/sample_reflections/](/Users/ian/dev/synapse/data/sample_reflections) is important because it is part of the product demo, not just filler.
+The sample corpus in [data/sample_reflections/](data/sample_reflections) is important because it is part of the product demo, not just filler.
 
 The 18 files are deliberately split across:
 
@@ -544,7 +545,7 @@ When evaluating extraction or graph quality, seed with this corpus first.
 
 ## How to run
 
-Use [`README.md`](/Users/ian/dev/synapse/README.md) for the canonical onboarding path:
+Use [`README.md`](README.md) for the canonical onboarding path:
 
 The recommended local runner is:
 
@@ -635,17 +636,17 @@ Examples:
 
 ### 2. `main.py` is not the app
 
-[main.py](/Users/ian/dev/synapse/main.py) is just an OpenAI call used as a scratch connectivity check.
+[main.py](main.py) is just an OpenAI call used as a scratch connectivity check.
 
 ### 3. No docs for optional run flags
 
-If you add environment-specific startup modes, document them in [`README.md`](/Users/ian/dev/synapse/README.md).
+If you add environment-specific startup modes, document them in [`README.md`](README.md).
 
 ### 4. Some files are experiments / spikes
 
-- [langchain_surreal.py](/Users/ian/dev/synapse/langchain_surreal.py)
-- [surreal_test.py](/Users/ian/dev/synapse/surreal_test.py)
-- [test.py](/Users/ian/dev/synapse/test.py)
+- [langchain_surreal.py](langchain_surreal.py)
+- [surreal_test.py](surreal_test.py)
+- [test.py](test.py)
 
 Treat them as exploratory utilities unless the user asks to formalize them.
 
@@ -655,7 +656,7 @@ Treat them as exploratory utilities unless the user asks to formalize them.
 
 ### 6. The app uses module-level shared state
 
-[reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py) keeps connection, vector store, and tool lists in globals. Be careful with initialization order and side effects.
+[reflect/agent.py](reflect/agent.py) keeps connection, vector store, and tool lists in globals. Be careful with initialization order and side effects.
 
 ### 7. Schema init runs during app startup
 
@@ -673,36 +674,86 @@ This is reflective mental-health-adjacent software, but it does not currently im
 
 Examples visible in the current code:
 
-- `_slug()` exists in [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py) but is unused.
+- `_slug()` exists in [reflect/graph_store.py](reflect/graph_store.py) but is unused.
 - `reminds_of` is defined in schema but no creation/query logic currently uses it.
 - `query_pattern_evolution()` exists, but the chat tool `get_temporal_evolution()` uses its own direct query instead.
 
 Do not remove these casually without confirming intent.
 
+## Roadmap
+
+This is a hackathon prototype currently running on a public-facing demo deploy. The list below describes directions to mature it beyond a demo into a defensible product. Items are grouped by theme; ordering within a theme is rough priority. The README has its own user-facing roadmap; this section is the technical/agent-facing version with file pointers.
+
+### Security and privacy (mental-health-adjacent — these matter most)
+
+- **Encrypt sensitive fields at rest** — reflection text and embeddings live in plaintext in SurrealDB. Per-user envelope encryption (user-derived key wraps a row key) means a Surreal compromise alone doesn't leak journals.
+- **Rate-limit auth endpoints** — `/api/auth/login`, `/api/auth/register`, `/api/auth/reset-request` in [api_server.py](api_server.py) currently have no rate limits. Easy targets for credential stuffing and account enumeration.
+- **GDPR-style data export and delete** — users have no way to download their full graph or wipe it. Both are needed for compliance and for trust.
+- **Audit logging** — record auth events (login, password reset, Telegram link/unlink) and any admin/cross-user reads against user data.
+
+### Reliability and resilience
+
+- **Retries with backoff on external calls** — OpenAI/Anthropic/SurrealDB calls in [reflect/agent.py](reflect/agent.py), [reflect/extraction.py](reflect/extraction.py), and [reflect/service.py](reflect/service.py) currently have no retry policy. Transient network failures crash the pipeline mid-reflection.
+- **Real schema migrations** — `init_schema()` in [reflect/db.py](reflect/db.py) runs idempotent CREATE statements at startup; there is no migration history. Adding a non-trivial new field or changing an index is unsafe against existing data. Adopt a migration tool or write a tiny one.
+- **Background queue for reflection processing** — the pipeline takes 6–10s. Running it inline in the HTTP request blocks workers and prevents true concurrency. Move to a background job (RQ, Celery, or a Surreal job table) and stream status to the frontend.
+- **Surface partial-pipeline failures** — extraction currently falls back to an empty structure on error so `/api/reflection` does not 500. Good for availability, bad for transparency. Surface the failure to the user instead of silently saving a half-processed reflection.
+
+### Multi-tenancy hardening
+
+- **Sweep every graph query for `user_id` scoping** — every read in [reflect/graph_store.py](reflect/graph_store.py) needs a manual audit to confirm it filters by `user_id`. Cross-user leakage on a mental-health app would be catastrophic.
+- **Per-user vector store partitioning** — embeddings currently share a single namespace; semantic search across users could leak content via similarity ranking. Either partition the vector store per user or filter results by `user_id` before returning.
+- **Soft delete on reflections** — currently no way to hide or remove a single reflection without nuking the graph. Users will eventually want to redact something they wrote.
+
+### Test and evaluation
+
+- **Extraction quality eval harness** — extraction prompt drift is invisible. Build a small labeled corpus (start from [data/sample_reflections/](data/sample_reflections)) and assert pattern/emotion/IFS-part extraction against expected outputs. Run on every change to [reflect/prompts.py](reflect/prompts.py).
+- **Reflection-pipeline integration tests** — [tests/test_smoke.py](tests/test_smoke.py) only covers utility functions. Add tests that run a reflection end-to-end against a test SurrealDB and assert the resulting graph shape.
+- **Frontend E2E tests** — login → reflect → see-insights flows are 100% manual right now (we discovered the CORS/VITE_API_URL/JSON-parse bugs through live debugging). Playwright would catch these as regressions.
+
+### Observability beyond LangSmith
+
+- **Structured application logging** — `logger.info`/`logger.error` calls are scattered and unstructured. Pick a JSON log format and ship to Render's log drain or an aggregator.
+- **Error tracking** — Sentry (or similar) for both the FastAPI backend and the React frontend, so production crashes surface without needing to read deploy logs.
+- **Cost telemetry** — track per-user OpenAI + Anthropic spend so unit economics are visible and runaway loops are detectable.
+
+### Product depth
+
+- **Longitudinal pattern surfacing** — the graph captures evolution but the dashboard mostly shows current state. Add timelines, "this pattern is recurring more lately," week-over-week shifts, dormancy detection.
+- **Therapist mode** — read-only graph access for an authorized therapist with explicit, revocable user consent.
+- **Graph-driven daily prompts** — instead of a static daily prompt, generate one tailored to underexplored or recently-active areas of the user's graph.
+- **Voice-note UX polish** — show transcription preview before processing, allow the user to edit before the pipeline runs.
+- **Mobile-first frontend pass** — current Vite app is desktop-tuned; reflection capture should feel great on phone (today is the primary capture moment).
+
+### Cost and efficiency
+
+- **Cache embeddings by content hash** — same input text gets re-embedded across reseeds, tests, and re-runs. Cache on `text_hash → embedding`.
+- **Use Haiku for low-stakes calls** — Telegram nudges and follow-up question generation could move from Sonnet to Haiku at a fraction of the cost.
+- **Extend batching to extraction** — embeddings are already batched; extraction is still per-reflection. Batch when seeding or importing.
+
 ## Guidance for future agents
 
 When changing this repo:
 
-- Read [PLAN.md](/Users/ian/dev/synapse/PLAN.md) for intent.
+- Read [PLAN.md](PLAN.md) for intent.
 - Read this file next for current-state context.
 - Then read the specific implementation files you are touching.
 
 If the task touches ingestion or extraction:
 
-- inspect [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py)
-- inspect [reflect/extraction.py](/Users/ian/dev/synapse/reflect/extraction.py)
-- inspect [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py)
-- inspect [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py)
+- inspect [reflect/agent.py](reflect/agent.py)
+- inspect [reflect/extraction.py](reflect/extraction.py)
+- inspect [reflect/prompts.py](reflect/prompts.py)
+- inspect [reflect/graph_store.py](reflect/graph_store.py)
 
 If the task touches data modeling or search:
 
-- inspect [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py)
-- inspect [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py)
+- inspect [reflect/db.py](reflect/db.py)
+- inspect [reflect/graph_store.py](reflect/graph_store.py)
 - remember the SurrealDB v3 patches
 
 If the task touches the UI:
 
-- inspect [frontend/src/App.tsx](/Users/ian/dev/synapse/frontend/src/App.tsx)
+- inspect [frontend/src/App.tsx](frontend/src/App.tsx)
 - preserve the two-tab mental model (`reflect` and `talk`) unless intentionally redesigning the product
 
 If the task touches prompts or therapeutic framing:
@@ -718,43 +769,13 @@ If the task changes commands, env vars, schema, tabs, tools, or key flows:
 
 ## Suggested next-doc improvements
 
-These are not yet implemented, but they would reduce future confusion:
+These are doc/repo housekeeping items, not product work (the product roadmap is its own section above):
 
-- document the required `.env` keys explicitly
-- add a real test harness around extraction parsing and graph queries
-- document expected SurrealDB version
-- separate experimental scripts from product code
+- Document the expected SurrealDB version explicitly (currently v3.0.1 Cloud, with v3-specific patches in [reflect/db.py](reflect/db.py) — worth calling out so version mismatches are easy to diagnose).
+- Move experimental/spike scripts ([test.py](test.py), [main.py](main.py), [surreal_test.py](surreal_test.py), [langchain_surreal.py](langchain_surreal.py)) into a `scratch/` or `experiments/` directory so the root only contains product code.
 
 ## Last refreshed
 
-This file was written after reading:
+Last meaningful refresh: 2026-04-25 (after the deploy ownership transfer to Caro's Render account, JWT secret hardening, env var documentation, and Tier 1 cleanup of stale paths and bot handle).
 
-- [PLAN.md](/Users/ian/dev/synapse/PLAN.md)
-- [README.md](/Users/ian/dev/synapse/README.md)
-- [ARCHITECTURE.md](/Users/ian/dev/synapse/ARCHITECTURE.md)
-- [london-hackathon-full-details.md](/Users/ian/dev/synapse/london-hackathon-full-details.md)
-- [pitch/PITCH_PLAYBOOK.md](/Users/ian/dev/synapse/pitch/PITCH_PLAYBOOK.md)
-- [.claude/skills/langchain/SKILL.md](/Users/ian/dev/synapse/.claude/skills/langchain/SKILL.md)
-- [.claude/skills/surrealdb/SKILL.md](/Users/ian/dev/synapse/.claude/skills/surrealdb/SKILL.md)
-- [.claude/skills/vite-typescript/SKILL.md](/Users/ian/dev/synapse/.claude/skills/vite-typescript/SKILL.md)
-- [.claude/skills/python/SKILL.md](/Users/ian/dev/synapse/.claude/skills/python/SKILL.md)
-- [pyproject.toml](/Users/ian/dev/synapse/pyproject.toml)
-- [render.yaml](/Users/ian/dev/synapse/render.yaml)
-- [api_server.py](/Users/ian/dev/synapse/api_server.py)
-- [main.py](/Users/ian/dev/synapse/main.py)
-- [seed_data.py](/Users/ian/dev/synapse/seed_data.py)
-- [langchain_surreal.py](/Users/ian/dev/synapse/langchain_surreal.py)
-- [surreal_test.py](/Users/ian/dev/synapse/surreal_test.py)
-- [test.py](/Users/ian/dev/synapse/test.py)
-- [reflect/service.py](/Users/ian/dev/synapse/reflect/service.py)
-- [reflect/auth.py](/Users/ian/dev/synapse/reflect/auth.py)
-- [reflect/db.py](/Users/ian/dev/synapse/reflect/db.py)
-- [reflect/graph_store.py](/Users/ian/dev/synapse/reflect/graph_store.py)
-- [reflect/extraction.py](/Users/ian/dev/synapse/reflect/extraction.py)
-- [reflect/agent.py](/Users/ian/dev/synapse/reflect/agent.py)
-- [reflect/chat_agent.py](/Users/ian/dev/synapse/reflect/chat_agent.py)
-- [reflect/prompts.py](/Users/ian/dev/synapse/reflect/prompts.py)
-- [frontend/src/App.tsx](/Users/ian/dev/synapse/frontend/src/App.tsx)
-- the seeded reflections under [data/sample_reflections/](/Users/ian/dev/synapse/data/sample_reflections)
-
-If you make the codebase materially different from this description, refresh this section too.
+If you make the codebase materially different from this description — new endpoints, schema changes, dependency swaps, deployment surface changes — refresh the relevant section in the same change so this file does not drift.
