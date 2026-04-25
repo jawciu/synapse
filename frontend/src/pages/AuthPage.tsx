@@ -3,6 +3,19 @@ import { FlowerIcon } from "../icons";
 
 const API_URL = (import.meta as ImportMeta).env?.VITE_API_URL ?? "http://localhost:8000";
 
+// Safely extract a user-facing error message from a failed fetch Response.
+// Falls back to a status-code message if the body is empty or non-JSON
+// (e.g. a 502 HTML page, a CORS-stripped body, or an empty response).
+async function readError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    if (body && typeof body.detail === "string" && body.detail) return body.detail;
+  } catch {
+    // body was empty or not JSON — fall through
+  }
+  return `${fallback} (${res.status})`;
+}
+
 type AuthResult = {
   user_id: string;
   email: string;
@@ -46,8 +59,8 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = (await res.json()) as AuthResult & { detail?: string };
-      if (!res.ok) throw new Error(data.detail || "Login failed");
+      if (!res.ok) throw new Error(await readError(res, "Login failed"));
+      const data = (await res.json()) as AuthResult;
       onAuth(data);
     } catch (err) {
       setError((err as Error).message);
@@ -66,8 +79,8 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = (await res.json()) as AuthResult & { detail?: string };
-      if (!res.ok) throw new Error(data.detail || "Registration failed");
+      if (!res.ok) throw new Error(await readError(res, "Registration failed"));
+      const data = (await res.json()) as AuthResult;
       onAuth(data);
     } catch (err) {
       setError((err as Error).message);
@@ -86,8 +99,8 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: resetEmail }),
       });
-      const data = (await res.json()) as { reset_token?: string; detail?: string };
-      if (!res.ok) throw new Error(data.detail || "Could not request reset");
+      if (!res.ok) throw new Error(await readError(res, "Could not request reset"));
+      const data = (await res.json()) as { reset_token?: string };
       setCopiedToken(data.reset_token ?? "");
       setResetStep("confirm");
     } catch (err) {
@@ -107,8 +120,7 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token: resetToken, new_password: newPassword }),
       });
-      const data = (await res.json()) as { message?: string; detail?: string };
-      if (!res.ok) throw new Error(data.detail || "Could not reset password");
+      if (!res.ok) throw new Error(await readError(res, "Could not reset password"));
       setSuccess("Password updated. You can now log in.");
       setResetStep("idle");
       setTab("login");
@@ -221,7 +233,7 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
           <span className="logo">synapse</span>
         </div>
 
-        <p className="auth-tagline">your personal reflection coach</p>
+        <p className="auth-tagline">your personal reflection space</p>
 
         <div className="tabs auth-tabs">
           <button
