@@ -215,7 +215,7 @@ This is an agentic extraction pattern, not a single raw prompt:
 - Tool 1: `get_existing_patterns`
 - Tool 2: `retrieve_similar_reflections`
 
-The prompt explicitly instructs the model to call both before extracting so it can reuse existing labels and stay more graph-consistent over time.
+The prompt explicitly instructs the model to call both before extracting so it can reuse existing labels and stay more graph-consistent over time. Theme reuse is handled at storage time, not at extraction time — `upsert_theme` runs a vector-KNN against existing themes and aliases incoming themes to a canonical match when cosine distance ≤ `THEME_DEDUP_DISTANCE` (0.15). This keeps theme dedup off the latency-sensitive extraction critical path.
 
 The output is expected to be JSON only with:
 

@@ -71,20 +71,44 @@ def upsert_pattern(conn: Surreal, name: str, category: str, description: str, us
     return str(result[0]["id"])
 
 
+THEME_DEDUP_DISTANCE = 0.42  # cosine distance; ≤ this collapses to existing theme. Tuned empirically against real data — embeddings include description so literal-concept matches sit ~0.38, while related-but-distinct concepts (e.g. "fear of failure" vs "achievement-driven anxiety") sit ~0.46+.
+
+
 @traceable(run_type="tool", name="upsert_theme")
 def upsert_theme(conn: Surreal, name: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
     name = name.strip().lower()
     if embedding is None:
         embedding = _embed(f"{name}: {description}")
+
+    # Exact-name match first — cheapest path.
     result = conn.query(
         "UPDATE theme SET name = $name, description = $description, embedding = $embedding WHERE name = $name AND user_id = $user_id",
         {"name": name, "description": description, "embedding": embedding, "user_id": user_id},
     )
-    if not result:
-        result = conn.query(
-            "CREATE theme SET name = $name, description = $description, embedding = $embedding, user_id = $user_id",
-            {"name": name, "description": description, "embedding": embedding, "user_id": user_id},
+    if result:
+        return str(result[0]["id"])
+
+    # Semantic-near match — alias to existing theme if cosine distance ≤ threshold.
+    near = conn.query(
+        """SELECT name, vector::distance::knn() AS dist FROM theme
+           WHERE embedding <|1,COSINE|> $embedding AND user_id = $user_id
+           ORDER BY dist LIMIT 1""",
+        {"embedding": embedding, "user_id": user_id},
+    )
+    if near and not isinstance(near, str) and near[0].get("dist") is not None and near[0]["dist"] <= THEME_DEDUP_DISTANCE:
+        canonical = near[0]["name"]
+        aliased = conn.query(
+            "SELECT id FROM theme WHERE name = $name AND user_id = $user_id",
+            {"name": canonical, "user_id": user_id},
         )
+        if aliased and not isinstance(aliased, str):
+            return str(aliased[0]["id"])
+
+    # No match — create new theme.
+    result = conn.query(
+        "CREATE theme SET name = $name, description = $description, embedding = $embedding, user_id = $user_id",
+        {"name": name, "description": description, "embedding": embedding, "user_id": user_id},
+    )
     return str(result[0]["id"])
 
 

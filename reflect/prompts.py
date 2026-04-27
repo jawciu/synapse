@@ -46,7 +46,7 @@ Given a personal reflection, you MUST first use your tools to:
 1. Call `get_existing_patterns` to see what patterns already exist in the graph
 2. Call `retrieve_similar_reflections` to find past reflections with similar themes
 
-Then extract structured data from the reflection. REUSE existing pattern names when the concept matches (e.g., don't create "catastrophizing" if "catastrophic thinking" already exists).
+Then extract structured data from the reflection. REUSE existing pattern names when the concept matches (e.g., don't create "catastrophizing" if "catastrophic thinking" already exists). For themes, prefer short, lowercase, generic names that can be reused across many reflections, not long bespoke descriptions per entry — the system will further deduplicate themes by semantic similarity at storage time.
 
 ## Extraction Categories
 

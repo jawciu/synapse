@@ -1070,6 +1070,8 @@ function App() {
                   <div className="insight-tile-preview">
                     {reflectionSources.length > 0 ? (
                       <p className="insight-tile-excerpt">{reflectionSources[0].text}</p>
+                    ) : sourcesBusy || (totals.reflections > 0 && reflectionSources.length === 0) ? (
+                      <p className="insight-tile-empty">Loading…</p>
                     ) : (
                       <p className="insight-tile-empty">No reflections yet</p>
                     )}
@@ -1148,9 +1150,19 @@ function App() {
                   <div className="insight-tile-preview">
                     {themeList.length > 0 ? (
                       <ResponsiveContainer width="100%" height={130}>
-                        <BarChart data={themeList.slice(0, 5)} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                        <BarChart data={themeList.slice(0, 3)} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
                           <XAxis type="number" hide />
-                          <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} stroke={THEME_COLORS.muted} />
+                          <YAxis
+                            dataKey="name"
+                            type="category"
+                            width={140}
+                            tick={{ fontSize: 12 }}
+                            stroke={THEME_COLORS.muted}
+                            tickFormatter={(v) => {
+                              const s = String(v);
+                              return s.length > 28 ? `${s.slice(0, 27)}…` : s;
+                            }}
+                          />
                           <Bar dataKey="mentions" radius={4} fill="#9f8bff" />
                         </BarChart>
                       </ResponsiveContainer>
