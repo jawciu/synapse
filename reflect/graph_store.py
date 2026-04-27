@@ -73,6 +73,7 @@ def upsert_pattern(conn: Surreal, name: str, category: str, description: str, us
 
 @traceable(run_type="tool", name="upsert_theme")
 def upsert_theme(conn: Surreal, name: str, description: str, user_id: str | None = None, embedding: list[float] | None = None) -> str:
+    name = name.strip().lower()
     if embedding is None:
         embedding = _embed(f"{name}: {description}")
     result = conn.query(
@@ -141,6 +142,8 @@ def upsert_schema(conn: Surreal, name: str, domain: str, coping_style: str, desc
 
 @traceable(run_type="tool", name="upsert_emotion")
 def upsert_emotion(conn: Surreal, name: str, valence: str, intensity: float, user_id: str | None = None) -> str:
+    name = name.strip().lower()
+    valence = valence.strip().lower()
     result = conn.query(
         "UPDATE emotion SET name = $name, valence = $valence, intensity = $intensity WHERE name = $name AND user_id = $user_id",
         {"name": name, "valence": valence, "intensity": intensity, "user_id": user_id},
@@ -179,6 +182,8 @@ def upsert_person(conn: Surreal, name: str, relationship: str, description: str,
 
 @traceable(run_type="tool", name="upsert_body_signal")
 def upsert_body_signal(conn: Surreal, name: str, location: str, user_id: str | None = None) -> str:
+    name = name.strip().lower()
+    location = location.strip().lower()
     result = conn.query(
         "UPDATE body_signal SET name = $name, location = $location, occurrences += 1 WHERE name = $name AND user_id = $user_id",
         {"name": name, "location": location, "user_id": user_id},
@@ -214,7 +219,8 @@ def batch_upsert_entities(conn: Surreal, extracted: dict, user_id: str | None = 
         embed_map.append(("pattern", i))
 
     for i, t in enumerate(extracted.get("themes", [])):
-        embed_texts.append(f"{t['name']}: {t['description']}")
+        name = t["name"].strip().lower()
+        embed_texts.append(f"{name}: {t['description']}")
         embed_map.append(("theme", i))
 
     for i, part in enumerate(extracted.get("ifs_parts", [])):
