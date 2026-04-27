@@ -7,9 +7,12 @@ from datetime import datetime, timezone, timedelta
 
 import bcrypt
 import jwt
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from surrealdb import Surreal
+
+load_dotenv()
 
 _jwt_env = os.getenv("JWT_SECRET", "").strip()
 if not _jwt_env:
@@ -109,16 +112,16 @@ def request_password_reset(conn: Surreal, email: str) -> str:
     token = str(uuid.uuid4())
     expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     conn.query(
-        "CREATE reset_token SET user_id = $user_id, token = $token, expires_at = $expires_at",
-        {"user_id": user_id, "token": token, "expires_at": expires_at},
+        "CREATE reset_token SET user_id = $user_id, token = $reset_token, expires_at = <datetime>$expires_at",
+        {"user_id": user_id, "reset_token": token, "expires_at": expires_at},
     )
     return token
 
 
 def confirm_password_reset(conn: Surreal, token: str, new_password: str) -> bool:
     rows = conn.query(
-        "SELECT user_id, expires_at FROM reset_token WHERE token = $token",
-        {"token": token},
+        "SELECT user_id, expires_at FROM reset_token WHERE token = $reset_token",
+        {"reset_token": token},
     )
     if not rows:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
@@ -129,14 +132,14 @@ def confirm_password_reset(conn: Surreal, token: str, new_password: str) -> bool
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if datetime.now(timezone.utc) > expires_at:
-        conn.query("DELETE reset_token WHERE token = $token", {"token": token})
+        conn.query("DELETE reset_token WHERE token = $reset_token", {"reset_token": token})
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset token expired")
     new_hash = hash_password(new_password)
     conn.query(
-        "UPDATE $user_id SET password_hash = $hash",
+        "UPDATE type::record($user_id) SET password_hash = $hash",
         {"user_id": row["user_id"], "hash": new_hash},
     )
-    conn.query("DELETE reset_token WHERE token = $token", {"token": token})
+    conn.query("DELETE reset_token WHERE token = $reset_token", {"reset_token": token})
     return True
 
 
