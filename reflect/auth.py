@@ -99,6 +99,22 @@ def login_user(conn: Surreal, email: str, password: str) -> dict:
     return {"user_id": user_id, "email": row["email"], "token": token}
 
 
+def demo_login(conn: Surreal) -> dict:
+    demo_email = os.getenv("DEMO_USER_EMAIL", "").strip().lower()
+    if not demo_email:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo mode is not enabled")
+    rows = conn.query(
+        "SELECT id, email FROM app_user WHERE email = $email",
+        {"email": demo_email},
+    )
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo account not found")
+    row = rows[0]
+    user_id = str(row["id"])
+    token = create_jwt(user_id)
+    return {"user_id": user_id, "email": row["email"], "token": token}
+
+
 def request_password_reset(conn: Surreal, email: str) -> str:
     email = email.strip().lower()
     rows = conn.query(

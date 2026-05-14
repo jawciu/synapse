@@ -348,6 +348,9 @@ function ReflectionProgress({ message }: { message: string }) {
 function App() {
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem("synapse_token"));
   const [authEmail, setAuthEmail] = useState<string | null>(() => localStorage.getItem("synapse_email"));
+  const showLoginParam = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("login") === "1";
+  const [demoLoginFailed, setDemoLoginFailed] = useState(false);
 
   const handleAuth = (result: { user_id: string; email: string; token: string }) => {
     localStorage.setItem("synapse_token", result.token);
@@ -355,6 +358,22 @@ function App() {
     setAuthToken(result.token);
     setAuthEmail(result.email);
   };
+
+  useEffect(() => {
+    if (authToken || showLoginParam || demoLoginFailed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`${API_URL}/api/auth/demo-login`, { method: "POST" });
+        if (!resp.ok) throw new Error(`demo-login ${resp.status}`);
+        const data = (await resp.json()) as { user_id: string; email: string; token: string };
+        if (!cancelled) handleAuth(data);
+      } catch {
+        if (!cancelled) setDemoLoginFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authToken, showLoginParam, demoLoginFailed]);
 
   const handleLogout = () => {
     localStorage.removeItem("synapse_token");
@@ -983,7 +1002,16 @@ function App() {
   const hasChatHistory = chatMessages.length > 0;
 
   if (!authToken) {
-    return <AuthPage onAuth={handleAuth} />;
+    if (showLoginParam || demoLoginFailed) {
+      return <AuthPage onAuth={handleAuth} />;
+    }
+    return (
+      <div className="app-shell">
+        <main className="content" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+          <ReflectionProgress message="Loading demo..." />
+        </main>
+      </div>
+    );
   }
 
   return (

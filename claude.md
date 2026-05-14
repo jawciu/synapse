@@ -38,6 +38,7 @@ The repo is small but mostly complete as a demo:
 - Public frontend is currently available at `https://synapse-ks93.onrender.com/` (Caro's Render account; replaced the earlier `synapse-frontend-vdmo` URL during deploy ownership transfer).
 - Public Telegram bot handle is `@synapsehelperbot` (`https://t.me/synapsehelperbot`).
 - Telegram `/link` flow now explicitly clears stale registration state, prioritizes link-state message handling over registration, and enforces one Telegram ID per account by clearing prior mappings before relinking.
+- Demo mode: when `DEMO_USER_EMAIL` is set on the backend, `POST /api/auth/demo-login` mints a JWT for that user without a password check (`demo_login` in [reflect/auth.py](reflect/auth.py)). The frontend ([frontend/src/App.tsx](frontend/src/App.tsx)) calls this endpoint automatically on boot when no token is in localStorage, so portfolio visitors land directly inside the seeded account. The real login/signup page is preserved and still reachable via `?login=1` in the URL (and shown automatically if demo-login fails, e.g. when the env var is unset). To disable demo mode, remove `DEMO_USER_EMAIL` from the backend env.
 - Shared SurrealDB graph resources now initialize schema once per process (not on every reconnect), reducing reconnect overhead.
 - Dashboard and people/reflections read paths now route DB calls through a reconnect-then-retry helper that reuses the refreshed connection object correctly.
 - Dashboard aggregation now avoids N+1 edge-count queries (emotion/theme mentions and people trigger-link retrieval are batched), and the insights view now shows an explicit loading state instead of rendering empty-state tiles while data is still in flight.
@@ -87,6 +88,7 @@ Find them at the top of each service's page in the Render dashboard. Format is a
 
 - `CORS_ORIGINS` = `https://synapse-ks93.onrender.com,http://localhost:5173`
 - All secrets from [.env.example](.env.example): `SURREAL_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LANGCHAIN_*`, `JWT_SECRET` (must be ≥32 chars or the app fails fast at import).
+- `DEMO_USER_EMAIL` (optional) = the email of the account portfolio visitors should auto-login as. When set, the frontend skips the login screen on boot and mints a JWT for this user via `/api/auth/demo-login` (no password check). Unset to disable demo mode.
 
 **`synapse-frontend` (static site)**
 

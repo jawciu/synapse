@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from reflect.auth import (
     confirm_password_reset,
+    demo_login,
     get_current_user,
     login_user,
     register_user,
@@ -146,6 +147,17 @@ def login(payload: LoginRequest):
     conn = get_db()
     try:
         return login_user(conn, payload.email, payload.password)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/auth/demo-login", response_model=AuthResponse)
+def demo_login_route():
+    conn = get_db()
+    try:
+        return demo_login(conn)
     except HTTPException:
         raise
     except Exception as exc:
