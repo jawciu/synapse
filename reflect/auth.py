@@ -41,11 +41,13 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ── JWT helpers ──
 
-def create_jwt(user_id: str) -> str:
-    payload = {
-        "sub": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(days=_JWT_EXPIRY_DAYS),
-    }
+def create_jwt(user_id: str, expires_days: int | None = _JWT_EXPIRY_DAYS) -> str:
+    payload: dict = {"sub": user_id}
+    # expires_days=None mints a non-expiring token (used for the portfolio demo
+    # account so public visitors are never logged out). PyJWT only enforces an
+    # expiry when the "exp" claim is present, so omitting it means it never expires.
+    if expires_days is not None:
+        payload["exp"] = datetime.now(timezone.utc) + timedelta(days=expires_days)
     return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
 
 
@@ -111,7 +113,8 @@ def demo_login(conn: Surreal) -> dict:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo account not found")
     row = rows[0]
     user_id = str(row["id"])
-    token = create_jwt(user_id)
+    # Demo tokens never expire so portfolio visitors stay logged in indefinitely.
+    token = create_jwt(user_id, expires_days=None)
     return {"user_id": user_id, "email": row["email"], "token": token}
 
 
