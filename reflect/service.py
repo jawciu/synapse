@@ -74,6 +74,30 @@ def _query_with_reconnect(statement: str, params: dict[str, Any] | None = None) 
     return None
 
 
+def _ensure_live_connection() -> None:
+    """Verify the shared SurrealDB connection is alive, reconnecting if it went stale.
+
+    SurrealDB Cloud closes idle WebSockets; a cheap query through the reconnect
+    helper refreshes the shared connection before agents bind tools to it.
+    """
+    _query_with_reconnect("RETURN 1")
+
+
+def _content_to_text(content: Any) -> str:
+    """Flatten LangChain message content (string or content-block list) to plain text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text", "")))
+        return "".join(parts)
+    return str(content)
+
+
 def _ensure_graph():
     global _reflection_graph
     if _reflection_graph is None:
@@ -82,7 +106,7 @@ def _ensure_graph():
 
 
 def _build_chat_agent_for_user(user_id: str | None):
-    _init()
+    _ensure_live_connection()
     conn, vector_store = get_conn_and_vector_store()
     _, chat_tools = make_graph_tools(conn, vector_store, user_id=user_id)
     return build_chat_agent(chat_tools)
@@ -96,7 +120,7 @@ def run_reflection_pipeline(
     user_id: str | None = None,
 ) -> dict[str, Any]:
     graph = _ensure_graph()
-    _init()
+    _ensure_live_connection()
 
     active_thread = _normalize_thread_id(thread_id, "reflection-session")
     active_source = _normalize_reflection_source(source)
@@ -135,7 +159,7 @@ async def stream_reflection_pipeline(
 ) -> AsyncGenerator[str, None]:
     """Yield SSE events as the reflection pipeline progresses through nodes."""
     graph = _ensure_graph()
-    _init()
+    _ensure_live_connection()
 
     active_thread = _normalize_thread_id(thread_id, "reflection-session")
     active_source = _normalize_reflection_source(source)
@@ -145,32 +169,8 @@ async def stream_reflection_pipeline(
     final_result = None
     seen_nodes: set[str] = set()
 
-    async for event in graph.astream_events(
-        {
-            "reflection_text": reflection_text,
-            "daily_prompt": daily_prompt,
-            "source": active_source,
-            "user_id": user_id,
-            "messages": [],
-        },
-        config={"configurable": {"thread_id": active_thread}},
-        version="v2",
-    ):
-        kind = event.get("event", "")
-        name = event.get("name", "")
-
-        # Emit progress when a node starts
-        if kind == "on_chain_start" and name in _NODE_LABELS and name not in seen_nodes:
-            seen_nodes.add(name)
-            yield f"data: {json.dumps({'type': 'progress', 'node': name, 'message': _NODE_LABELS[name]})}\n\n"
-
-        # Capture final state
-        if kind == "on_chain_end" and name == "LangGraph":
-            final_result = event.get("data", {}).get("output", {})
-
-    if final_result is None:
-        # Fallback: run synchronously if streaming didn't capture output
-        result = graph.invoke(
+    try:
+        async for event in graph.astream_events(
             {
                 "reflection_text": reflection_text,
                 "daily_prompt": daily_prompt,
@@ -179,8 +179,36 @@ async def stream_reflection_pipeline(
                 "messages": [],
             },
             config={"configurable": {"thread_id": active_thread}},
-        )
-        final_result = result
+            version="v2",
+        ):
+            kind = event.get("event", "")
+            name = event.get("name", "")
+
+            # Emit progress when a node starts
+            if kind == "on_chain_start" and name in _NODE_LABELS and name not in seen_nodes:
+                seen_nodes.add(name)
+                yield f"data: {json.dumps({'type': 'progress', 'node': name, 'message': _NODE_LABELS[name]})}\n\n"
+
+            # Capture final state
+            if kind == "on_chain_end" and name == "LangGraph":
+                final_result = event.get("data", {}).get("output", {})
+
+        if final_result is None:
+            # Fallback: run synchronously if streaming didn't capture output
+            result = graph.invoke(
+                {
+                    "reflection_text": reflection_text,
+                    "daily_prompt": daily_prompt,
+                    "source": active_source,
+                    "user_id": user_id,
+                    "messages": [],
+                },
+                config={"configurable": {"thread_id": active_thread}},
+            )
+            final_result = result
+    except Exception as exc:
+        yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
+        return
 
     payload = {"thread_id": active_thread, "result": final_result}
     yield f"data: {json.dumps({'type': 'result', 'content': payload}, default=str)}\n\n"
@@ -188,7 +216,6 @@ async def stream_reflection_pipeline(
 
 
 def run_chat(message: str, thread_id: str | None, user_id: str | None = None) -> dict[str, Any]:
-    _init()
     active_thread = _normalize_thread_id(thread_id, "chat-session")
     chat_agent = _build_chat_agent_for_user(user_id)
     response = chat_agent.invoke(
@@ -201,14 +228,14 @@ def run_chat(message: str, thread_id: str | None, user_id: str | None = None) ->
             messages.append(
                 ChatMessage(
                     role=getattr(msg, "type", "assistant"),
-                    content=getattr(msg, "content", str(msg)),
+                    content=_content_to_text(getattr(msg, "content", str(msg))),
                 )
             )
         elif isinstance(msg, dict):
             messages.append(
                 ChatMessage(
                     role=msg.get("type", "assistant"),
-                    content=str(msg.get("content", "")),
+                    content=_content_to_text(msg.get("content", "")),
                 )
             )
         else:
@@ -222,30 +249,33 @@ def run_chat(message: str, thread_id: str | None, user_id: str | None = None) ->
 
 async def stream_chat(message: str, thread_id: str | None, user_id: str | None = None) -> AsyncGenerator[str, None]:
     """Yield SSE events as the chat agent streams its response."""
-    _init()
     active_thread = _normalize_thread_id(thread_id, "chat-session")
     chat_agent = _build_chat_agent_for_user(user_id)
 
     yield f"data: {json.dumps({'type': 'thread_id', 'content': active_thread})}\n\n"
 
-    async for event in chat_agent.astream_events(
-        {"messages": [HumanMessage(content=message)]},
-        config={"configurable": {"thread_id": active_thread}},
-        version="v2",
-    ):
-        kind = event["event"]
-        if kind == "on_chat_model_stream":
-            chunk = event["data"]["chunk"]
-            token = chunk.content
-            # token can be a string or a list of content blocks
-            if isinstance(token, list):
-                for block in token:
-                    if isinstance(block, str) and block:
-                        yield f"data: {json.dumps({'type': 'token', 'content': block})}\n\n"
-                    elif isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
-                        yield f"data: {json.dumps({'type': 'token', 'content': block['text']})}\n\n"
-            elif token and isinstance(token, str):
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+    try:
+        async for event in chat_agent.astream_events(
+            {"messages": [HumanMessage(content=message)]},
+            config={"configurable": {"thread_id": active_thread}},
+            version="v2",
+        ):
+            kind = event["event"]
+            if kind == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                token = chunk.content
+                # token can be a string or a list of content blocks
+                if isinstance(token, list):
+                    for block in token:
+                        if isinstance(block, str) and block:
+                            yield f"data: {json.dumps({'type': 'token', 'content': block})}\n\n"
+                        elif isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
+                            yield f"data: {json.dumps({'type': 'token', 'content': block['text']})}\n\n"
+                elif token and isinstance(token, str):
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+    except Exception as exc:
+        yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
+        return
 
     yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 

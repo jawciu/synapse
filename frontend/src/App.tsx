@@ -611,6 +611,7 @@ function App() {
       const decoder = new TextDecoder();
       let buffer = "";
       let payload: (ReflectionResponse & { detail?: string }) | null = null;
+      let streamError = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -633,6 +634,8 @@ function App() {
               setReflectionProgressMsg(evt.message);
             } else if (evt.type === "result" && evt.content) {
               payload = evt.content as ReflectionResponse & { detail?: string };
+            } else if (evt.type === "error") {
+              streamError = String(evt.content || "Something went wrong while processing your reflection.");
             }
           } catch {
             // skip malformed SSE lines
@@ -640,6 +643,7 @@ function App() {
         }
       }
 
+      if (streamError) throw new Error(streamError);
       if (!payload) throw new Error("No result received from pipeline");
 
       // Safety net: force crisis_flag if input contains crisis keywords
@@ -719,6 +723,7 @@ function App() {
       const decoder = new TextDecoder();
       let accumulated = "";
       let buffer = "";
+      let streamError = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -741,11 +746,17 @@ function App() {
             } else if (event.type === "token") {
               accumulated += event.content;
               updateLastAssistant(accumulated);
+            } else if (event.type === "error") {
+              streamError = event.content || "Something went wrong while answering.";
             }
           } catch {
             // skip malformed SSE lines
           }
         }
+      }
+
+      if (streamError) {
+        throw new Error(`Sorry, something went wrong while answering — please try again. (${streamError})`);
       }
 
       if (!accumulated) {

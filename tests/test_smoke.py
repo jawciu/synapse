@@ -1,5 +1,5 @@
 from reflect.auth import create_jwt, decode_jwt, hash_password, verify_password
-from reflect.service import _normalize_reflection_source, _normalize_thread_id
+from reflect.service import _content_to_text, _normalize_reflection_source, _normalize_thread_id
 
 
 def test_password_hash_roundtrip() -> None:
@@ -32,3 +32,19 @@ def test_thread_id_normalization() -> None:
     generated = _normalize_thread_id(None, "chat-session")
     assert generated.startswith("chat-session-")
     assert len(generated) > len("chat-session-")
+
+
+def test_content_to_text_flattens_message_content() -> None:
+    assert _content_to_text("plain answer") == "plain answer"
+    assert _content_to_text(["a", "b"]) == "ab"
+    assert (
+        _content_to_text(
+            [
+                {"type": "text", "text": "Let me look. "},
+                {"type": "tool_use", "id": "toolu_123", "name": "get_graph_summary", "input": {}},
+                {"type": "text", "text": "Done."},
+            ]
+        )
+        == "Let me look. Done."
+    )
+    assert _content_to_text(None) == "None"
