@@ -386,13 +386,21 @@ function App() {
     if (authToken || showLoginParam || demoLoginFailed) return;
     let cancelled = false;
     (async () => {
-      try {
-        const resp = await fetch(`${API_URL}/api/auth/demo-login`, { method: "POST" });
-        if (!resp.ok) throw new Error(`demo-login ${resp.status}`);
-        const data = (await resp.json()) as { user_id: string; email: string; token: string };
-        if (!cancelled) handleAuth(data);
-      } catch {
-        if (!cancelled) setDemoLoginFailed(true);
+      const retryDelays = [0, 600, 1400];
+      for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+        if (retryDelays[attempt] > 0) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelays[attempt]));
+        }
+        if (cancelled) return;
+        try {
+          const resp = await fetch(`${API_URL}/api/auth/demo-login`, { method: "POST" });
+          if (!resp.ok) throw new Error(`demo-login ${resp.status}`);
+          const data = (await resp.json()) as { user_id: string; email: string; token: string };
+          if (!cancelled) handleAuth(data);
+          return;
+        } catch {
+          if (attempt === retryDelays.length - 1 && !cancelled) setDemoLoginFailed(true);
+        }
       }
     })();
     return () => { cancelled = true; };

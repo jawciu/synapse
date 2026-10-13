@@ -1,4 +1,6 @@
 import os
+import threading
+
 from dotenv import load_dotenv
 from surrealdb import Surreal
 from langchain_openai import OpenAIEmbeddings
@@ -58,6 +60,36 @@ def get_connection() -> Surreal:
     conn.use(surreal_ns, surreal_db)
     conn.signin({"username": surreal_user, "password": surreal_pass})
     return conn
+
+
+# One live socket for the whole process. Opening a new SurrealDB websocket on
+# every auth request leaked the startup connection (its keepalive thread keeps
+# the object alive) and eventually made new sign-ins fail, so public demo
+# login collapsed into an unhandled 500 and the UI showed the sign-in wall.
+_shared_conn = None
+_shared_lock = threading.Lock()
+
+
+def get_shared_connection() -> Surreal:
+    global _shared_conn
+    with _shared_lock:
+        if _shared_conn is None:
+            _shared_conn = get_connection()
+        return _shared_conn
+
+
+def reconnect_shared_connection() -> Surreal:
+    global _shared_conn
+    with _shared_lock:
+        old = _shared_conn
+        _shared_conn = None
+        if old is not None:
+            try:
+                old.close()
+            except Exception:
+                pass
+        _shared_conn = get_connection()
+        return _shared_conn
 
 
 def get_embeddings() -> OpenAIEmbeddings:

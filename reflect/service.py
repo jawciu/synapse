@@ -83,19 +83,35 @@ def _ensure_live_connection() -> None:
     _query_with_reconnect("RETURN 1")
 
 
+def _block_text(block: Any) -> str:
+    """Pull visible text out of one streamed content block, skipping tool calls."""
+    if isinstance(block, str):
+        return block
+    if isinstance(block, dict):
+        block_type = block.get("type")
+        text = block.get("text")
+    else:
+        block_type = getattr(block, "type", None)
+        text = getattr(block, "text", None)
+    if block_type in {"text", "text_delta"} and text:
+        return str(text)
+    return ""
+
+
 def _content_to_text(content: Any) -> str:
     """Flatten LangChain message content (string or content-block list) to plain text."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts: list[str] = []
-        for block in content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict) and block.get("type") == "text":
-                parts.append(str(block.get("text", "")))
-        return "".join(parts)
+        return "".join(_block_text(block) for block in content)
     return str(content)
+
+
+def _message_text(message: Any) -> str:
+    if message is None:
+        return ""
+    content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
+    return _content_to_text(content)
 
 
 def _ensure_graph():
@@ -254,6 +270,8 @@ async def stream_chat(message: str, thread_id: str | None, user_id: str | None =
 
     yield f"data: {json.dumps({'type': 'thread_id', 'content': active_thread})}\n\n"
 
+    streamed = ""
+    final_text = ""
     try:
         async for event in chat_agent.astream_events(
             {"messages": [HumanMessage(content=message)]},
@@ -262,20 +280,22 @@ async def stream_chat(message: str, thread_id: str | None, user_id: str | None =
         ):
             kind = event["event"]
             if kind == "on_chat_model_stream":
-                chunk = event["data"]["chunk"]
-                token = chunk.content
-                # token can be a string or a list of content blocks
-                if isinstance(token, list):
-                    for block in token:
-                        if isinstance(block, str) and block:
-                            yield f"data: {json.dumps({'type': 'token', 'content': block})}\n\n"
-                        elif isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
-                            yield f"data: {json.dumps({'type': 'token', 'content': block['text']})}\n\n"
-                elif token and isinstance(token, str):
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                piece = _message_text(event.get("data", {}).get("chunk"))
+                if piece:
+                    streamed += piece
+                    yield f"data: {json.dumps({'type': 'token', 'content': piece})}\n\n"
+            elif kind == "on_chat_model_end":
+                # Tool-calling models often finish the visible answer on the
+                # end event when stream chunks are only tool-use blocks.
+                text = _message_text(event.get("data", {}).get("output"))
+                if text.strip():
+                    final_text = text
     except Exception as exc:
         yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
         return
+
+    if not streamed.strip() and final_text.strip():
+        yield f"data: {json.dumps({'type': 'token', 'content': final_text})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
 
