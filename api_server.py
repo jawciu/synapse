@@ -16,7 +16,7 @@ from reflect.auth import (
     register_user,
     request_password_reset,
 )
-from reflect.db import get_connection, init_schema
+from reflect.db import get_shared_connection, init_schema, reconnect_shared_connection
 from reflect.service import (
     daily_prompt,
     get_dashboard_payload,
@@ -36,7 +36,7 @@ app = FastAPI(title="Synapse API", version="0.3.0")
 
 @app.on_event("startup")
 def startup_init_schema():
-    conn = get_connection()
+    conn = get_shared_connection()
     init_schema(conn)
 
 allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
@@ -52,9 +52,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Shared DB connection for auth routes (lightweight, no ML init)
-def get_db():
-    return get_connection()
+# Shared DB connection for auth routes (lightweight, no ML init).
+# Reuse the process-wide socket opened at startup. A dead socket is replaced
+# once; HTTP errors from the auth helpers (unknown demo user, bad password)
+# are not retried.
+def _db_call(fn):
+    try:
+        return fn(get_shared_connection())
+    except HTTPException:
+        raise
+    except Exception:
+        try:
+            return fn(reconnect_shared_connection())
+        except HTTPException:
+            raise
 
 
 # ── Auth request/response models ──
@@ -133,9 +144,8 @@ def health() -> dict[str, str]:
 
 @app.post("/api/auth/register", response_model=AuthResponse)
 def register(payload: RegisterRequest):
-    conn = get_db()
     try:
-        return register_user(conn, payload.email, payload.password)
+        return _db_call(lambda conn: register_user(conn, payload.email, payload.password))
     except HTTPException:
         raise
     except Exception as exc:
@@ -144,9 +154,8 @@ def register(payload: RegisterRequest):
 
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(payload: LoginRequest):
-    conn = get_db()
     try:
-        return login_user(conn, payload.email, payload.password)
+        return _db_call(lambda conn: login_user(conn, payload.email, payload.password))
     except HTTPException:
         raise
     except Exception as exc:
@@ -155,9 +164,8 @@ def login(payload: LoginRequest):
 
 @app.post("/api/auth/demo-login", response_model=AuthResponse)
 def demo_login_route():
-    conn = get_db()
     try:
-        return demo_login(conn)
+        return _db_call(demo_login)
     except HTTPException:
         raise
     except Exception as exc:
@@ -166,7 +174,7 @@ def demo_login_route():
 
 @app.post("/api/auth/reset-request", response_model=ResetRequestResponse)
 def reset_request(payload: ResetRequestBody):
-    conn = get_db()
+    conn = get_shared_connection()
     token = request_password_reset(conn, payload.email)
     return ResetRequestResponse(
         reset_token=token,
@@ -176,7 +184,7 @@ def reset_request(payload: ResetRequestBody):
 
 @app.post("/api/auth/reset-confirm")
 def reset_confirm(payload: ResetConfirmBody):
-    conn = get_db()
+    conn = get_shared_connection()
     try:
         confirm_password_reset(conn, payload.token, payload.new_password)
         return {"message": "Password updated successfully."}

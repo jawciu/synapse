@@ -8,7 +8,7 @@ from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langsmith import traceable
 
-from .db import get_connection, get_embeddings, get_vector_store, init_schema
+from .db import get_embeddings, get_shared_connection, get_vector_store, init_schema, reconnect_shared_connection
 from .graph_store import (
     set_embeddings_model,
     make_graph_tools,
@@ -44,8 +44,9 @@ _schema_initialized = False
 
 def _init(force_reconnect=False):
     global _conn, _vector_store, _schema_initialized
-    if _conn is None or force_reconnect:
-        _conn = get_connection()
+    fresh = reconnect_shared_connection() if force_reconnect else get_shared_connection()
+    if force_reconnect or _conn is None or _conn is not fresh or _vector_store is None:
+        _conn = fresh
         if not _schema_initialized:
             init_schema(_conn)
             _schema_initialized = True
