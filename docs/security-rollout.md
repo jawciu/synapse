@@ -2,6 +2,14 @@
 
 Prepared on 22 October 2026 for the Synapse findings in the supplied security report. Commit, push, and deployment were authorised on that date. Verify the current Git and Render state before resuming rollout; the steps below also describe separate credential and database operations.
 
+## Verified deployment, 22 October 2026
+
+Security commit `22429758afe749d10a11d92e6ffcb02bd91af1f7` is pushed to `main` and deployed on the backend, frontend, and Telegram worker. Live checks confirm health/authenticated API access, demo JWT expiry of 24 hours, the eight-character reset minimum, the reset response containing only `message`, and the updated frontend bundle.
+
+The initial Python builds failed with `Required uv version >=0.13.4 does not match the running version 0.10.2`. These services have dashboard-managed commands, so editing `render.yaml` did not change their saved `uv sync` commands. Updating both dashboard build commands to `bash scripts/build-backend.sh` and their start commands to the direct `.venv/bin` commands fixed the failures. Both builds and runtime startup succeeded. The worker briefly restarted after a polling conflict during handover, then polled successfully.
+
+Backend environment names were checked without revealing values. `RESEND_API_KEY` and `RESET_EMAIL_FROM` are absent, so email recovery configuration remains pending. JWT secret rotation and reset-row deletion have not been performed. The documentation-only release record uses Render's [documented auto-deploy skip phrase](https://render.com/docs/deploys#skipping-an-auto-deploy) to preserve the verified runtime revision.
+
 ## Changes
 
 | Finding | Implemented behaviour |
