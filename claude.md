@@ -65,7 +65,7 @@ What is not present:
 
 - No broad test coverage (a minimal `pytest` smoke suite exists at [tests/test_smoke.py](tests/test_smoke.py); integration and end-to-end tests do not).
 - No roles/permissions, admin controls, SSO, or 2FA. Auth covers email/password login, JWT sessions, password reset, and Telegram account linking — nothing beyond.
-- No production hardening around retries, schema migrations, queueing, or rate limiting.
+- No production hardening around retries, schema migrations, or queueing. Auth routes now enforce per-IP rate limits; see [the security rollout notes](docs/security-rollout.md) for storage and proxy requirements.
 - No encryption at rest for reflection text or embeddings — sensitive content lives in plaintext in SurrealDB.
 
 ## Render service env vars
@@ -693,7 +693,7 @@ This is a hackathon prototype currently running on a public-facing demo deploy. 
 ### Security and privacy (mental-health-adjacent — these matter most)
 
 - **Encrypt sensitive fields at rest** — reflection text and embeddings live in plaintext in SurrealDB. Per-user envelope encryption (user-derived key wraps a row key) means a Surreal compromise alone doesn't leak journals.
-- **Rate-limit auth endpoints** — `/api/auth/login`, `/api/auth/register`, `/api/auth/reset-request` in [api_server.py](api_server.py) currently have no rate limits. Easy targets for credential stuffing and account enumeration.
+- **Auth deployment**: all `/api/auth/*` routes enforce per-IP rate limits. Configure shared storage before adding workers or instances. Password recovery requires `RESEND_API_KEY` and `RESET_EMAIL_FROM`; raw reset codes are emailed and never returned through the API. Demo JWTs expire after one day, regular JWTs after seven days, and tokens without expiry are rejected. Deployment and rotation steps are in [docs/security-rollout.md](docs/security-rollout.md).
 - **GDPR-style data export and delete** — users have no way to download their full graph or wipe it. Both are needed for compliance and for trust.
 - **Audit logging** — record auth events (login, password reset, Telegram link/unlink) and any admin/cross-user reads against user data.
 

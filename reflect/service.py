@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections import defaultdict
 from collections.abc import AsyncGenerator
@@ -14,6 +15,8 @@ from .chat_agent import build_chat_agent
 from .graph_store import make_graph_tools
 from .prompts import get_daily_prompt
 
+
+logger = logging.getLogger(__name__)
 
 _reflection_graph = None
 
@@ -158,9 +161,6 @@ async def stream_reflection_pipeline(
     user_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Yield SSE events as the reflection pipeline progresses through nodes."""
-    graph = _ensure_graph()
-    _ensure_live_connection()
-
     active_thread = _normalize_thread_id(thread_id, "reflection-session")
     active_source = _normalize_reflection_source(source)
 
@@ -170,6 +170,8 @@ async def stream_reflection_pipeline(
     seen_nodes: set[str] = set()
 
     try:
+        graph = _ensure_graph()
+        _ensure_live_connection()
         async for event in graph.astream_events(
             {
                 "reflection_text": reflection_text,
@@ -206,8 +208,9 @@ async def stream_reflection_pipeline(
                 config={"configurable": {"thread_id": active_thread}},
             )
             final_result = result
-    except Exception as exc:
-        yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
+    except Exception:
+        logger.exception("Streaming request failed")
+        yield f"data: {json.dumps({'type': 'error', 'content': 'Internal error'})}\n\n"
         return
 
     payload = {"thread_id": active_thread, "result": final_result}
@@ -250,11 +253,10 @@ def run_chat(message: str, thread_id: str | None, user_id: str | None = None) ->
 async def stream_chat(message: str, thread_id: str | None, user_id: str | None = None) -> AsyncGenerator[str, None]:
     """Yield SSE events as the chat agent streams its response."""
     active_thread = _normalize_thread_id(thread_id, "chat-session")
-    chat_agent = _build_chat_agent_for_user(user_id)
-
     yield f"data: {json.dumps({'type': 'thread_id', 'content': active_thread})}\n\n"
 
     try:
+        chat_agent = _build_chat_agent_for_user(user_id)
         async for event in chat_agent.astream_events(
             {"messages": [HumanMessage(content=message)]},
             config={"configurable": {"thread_id": active_thread}},
@@ -273,8 +275,9 @@ async def stream_chat(message: str, thread_id: str | None, user_id: str | None =
                             yield f"data: {json.dumps({'type': 'token', 'content': block['text']})}\n\n"
                 elif token and isinstance(token, str):
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-    except Exception as exc:
-        yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
+    except Exception:
+        logger.exception("Streaming request failed")
+        yield f"data: {json.dumps({'type': 'error', 'content': 'Internal error'})}\n\n"
         return
 
     yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"

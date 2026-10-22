@@ -1,0 +1,10 @@
+## Active work
+
+- **Task:** Address the supplied security report's Synapse findings in `jawciu/synapse`, checked out at `/Users/caro/Code/langchain-hackathon`.
+- **Verified:** 22 October 2026. Branch `main`; pre-existing untracked `.tmp/` preserved. Commit, push, and deployment authorised by Caroline. Preserve the upstream certifi update `9fc68f8` when synchronising before push.
+- **Changed:** Generic reset acknowledgement and Resend email delivery; hashed, expiring, single-use reset codes; atomic password updates; expiring demo JWTs and rejection of tokens without expiry; auth rate limits; generic HTTP/SSE errors; patched certificate/tooling build; compatible dependency security updates. See `docs/security-rollout.md` for details and remaining dependency constraints.
+- **State:** Implemented and validated locally; authorised delivery in progress. Verify the current deployed revision directly in Render. Python audit still has 15 advisory entries across five LangChain/LangGraph packages; frontend audit is clean.
+- **Validation:** All 37 backend tests pass against SurrealDB 3.0.1 on loopback, including concurrent reset confirmation. Frontend production build and audit pass. Patched Render build script runs locally; dependency consistency and actual agent/graph construction pass without remote calls. Reset request/confirmation UI checked in the local browser with a fixture API. Two pre-existing FastAPI startup deprecation warnings remain. Temporary test services stopped.
+- **Next:** Commit and push the security changes, then verify both Python services and the frontend on the intended revision. Check Resend configuration. Shared JWT rotation and reset-row deletion remain separate credential/data operations. A coordinated LangChain/SurrealDB integration migration is separate remaining security work.
+- **Open intent:** None beyond this security fix.
+- **Resume:** Read this file and `docs/security-rollout.md`, then verify `git status --short` and `git branch --show-current`. Use uv >=0.13.4. Tests use synthetic credentials; transaction tests require an explicitly configured disposable loopback SurrealDB.

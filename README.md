@@ -108,13 +108,16 @@ Synapse includes explicit safety and reliability guardrails across prompts and r
 User data is stored and accessed with layered controls in the current implementation:
 
 - **Password security:** user passwords are hashed with `bcrypt` (never stored in plaintext).
-- **Token-based access:** protected endpoints require signed JWT bearer tokens.
+- **Token-based access:** protected endpoints require signed JWT bearer tokens with an expiry. User sessions last seven days; demo sessions last one day.
 - **User-scoped data access:** reflection and graph queries are filtered by `user_id` to isolate each account's data.
-- **Account integrity controls:** user email has a unique index, and password reset tokens are unique with 1-hour expiry.
+- **Account integrity controls:** user email has a unique index. Password reset codes are emailed through Resend, stored as SHA-256 hashes, expire after one hour, and can only be used once. A new request invalidates earlier codes. Reset passwords require at least eight characters.
+- **Auth rate limits:** registration, login, demo login, and both password reset endpoints enforce per-IP limits.
 - **Telegram linking control:** Telegram accounts are linked through explicit credential verification (`/link`) or in-bot account creation.
 - **Secrets-based configuration:** database/API credentials are loaded from environment variables rather than hardcoded.
 
 For production deployments, set a strong `JWT_SECRET`, enforce secure environment management, and apply your platform/network security policies.
+
+See [security rollout and verification](docs/security-rollout.md) for email configuration, patched build tooling, deployment steps, and outstanding dependency findings.
 
 ---
 
@@ -462,6 +465,8 @@ Recommended defaults/optional:
 - `LANGCHAIN_PROJECT=synapse-hackathon`
 - `LANGCHAIN_API_KEY=<if using LangSmith>`
 - `TELEGRAM_BOT_TOKEN=<required for Telegram bot>`
+- `RESEND_API_KEY=<required for password recovery>`
+- `RESET_EMAIL_FROM=<sender on a verified Resend domain>`
 
 ### 3) Install dependencies
 
@@ -469,7 +474,7 @@ Recommended defaults/optional:
 just sync
 ```
 
-This runs backend dependency sync (`uv sync`) and frontend dependency sync when needed.
+Use uv 0.13.4 or later. `just sync` installs backend and frontend dependencies when needed. For the patched pip environment as well, run `uv sync --frozen --group security`. Render uses `scripts/build-backend.sh` to bootstrap verified, patched tooling and sync the lockfile.
 
 ### 4) Run web app (backend + frontend)
 

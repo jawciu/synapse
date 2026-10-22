@@ -345,13 +345,13 @@ function ReflectionProgress({ message }: { message: string }) {
   );
 }
 
-// Returns true if a JWT is malformed or past its `exp`. Tokens with no `exp`
-// claim (the never-expiring demo token) are treated as valid forever.
+// Drop malformed, expired, and legacy tokens without an expiry.
 function isTokenDead(token: string | null): boolean {
   if (!token) return true;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    if (typeof payload.exp !== "number") return false; // no expiry → never dies
+    const encoded = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(encoded));
+    if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return true;
     return payload.exp * 1000 <= Date.now();
   } catch {
     return true; // unparseable token → treat as dead so demo-login re-runs

@@ -5,8 +5,8 @@ services:
     repo: https://github.com/jawciu/synapse
     rootDir: .
     branch: main
-    buildCommand: uv sync
-    startCommand: uv run uvicorn api_server:app --host 0.0.0.0 --port $PORT
+    buildCommand: bash scripts/build-backend.sh
+    startCommand: .venv/bin/uvicorn api_server:app --host 0.0.0.0 --port $PORT
     autoDeploy: true
     healthCheckPath: /health
 
@@ -16,8 +16,8 @@ services:
     repo: https://github.com/jawciu/synapse
     rootDir: .
     branch: main
-    buildCommand: uv sync
-    startCommand: uv run python -m reflect.telegram_bot
+    buildCommand: bash scripts/build-backend.sh
+    startCommand: .venv/bin/python -m reflect.telegram_bot
     autoDeploy: true
 
   - type: web

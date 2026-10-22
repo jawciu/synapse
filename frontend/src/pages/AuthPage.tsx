@@ -41,7 +41,6 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
   const [resetStep, setResetStep] = useState<ResetStep>("idle");
   const [resetEmail, setResetEmail] = useState("");
   const [resetToken, setResetToken] = useState("");
-  const [copiedToken, setCopiedToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   const clearMessages = () => {
@@ -100,8 +99,6 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
         body: JSON.stringify({ email: resetEmail }),
       });
       if (!res.ok) throw new Error(await readError(res, "Could not request reset"));
-      const data = (await res.json()) as { reset_token?: string };
-      setCopiedToken(data.reset_token ?? "");
       setResetStep("confirm");
     } catch (err) {
       setError((err as Error).message);
@@ -145,7 +142,7 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
           {resetStep === "request" && (
             <>
               <h2 className="auth-heading">reset password</h2>
-              <p className="auth-sub">Enter your account email to get a reset token.</p>
+              <p className="auth-sub">Enter your account email to receive a reset code.</p>
               <form onSubmit={handleResetRequest} className="auth-form">
                 <label className="auth-label">
                   email
@@ -160,7 +157,7 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
                 </label>
                 {error && <p className="auth-error">{error}</p>}
                 <button type="submit" className="auth-btn" disabled={busy}>
-                  {busy ? "sending..." : "get reset token"}
+                  {busy ? "sending..." : "send reset code"}
                 </button>
                 <button
                   type="button"
@@ -176,21 +173,16 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
           {resetStep === "confirm" && (
             <>
               <h2 className="auth-heading">set new password</h2>
-              {copiedToken && (
-                <div className="auth-token-box">
-                  <p className="auth-sub">Your reset token (copy it):</p>
-                  <code className="auth-token">{copiedToken}</code>
-                </div>
-              )}
+              <p className="auth-sub">If that email exists, password reset instructions have been sent. Check your inbox for a code valid for one hour.</p>
               <form onSubmit={handleResetConfirm} className="auth-form">
                 <label className="auth-label">
-                  reset token
+                  reset code
                   <input
                     type="text"
                     className="auth-input"
                     value={resetToken}
                     onChange={(e) => setResetToken(e.target.value)}
-                    placeholder="paste token here"
+                    placeholder="paste code from your email"
                     required
                   />
                 </label>

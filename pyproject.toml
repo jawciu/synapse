@@ -5,6 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "certifi>=2026.10.19",
+    "httpx>=0.28.1",
+    "slowapi>=0.1.9",
     "langgraph>=0.6.7",
     "langchain-openai>=1.1.3",
     "langchain-surrealdb>=0.2.0",
@@ -20,6 +23,16 @@ dependencies = [
     "pyjwt>=2.8.0",
     "pytest>=8.4.0",
 ]
+
+[dependency-groups]
+security = ["pip>=26.2.2"]
+audit = ["pip-audit>=2.9.0"]
+
+[project.optional-dependencies]
+redis = ["redis>=5"]
+
+[tool.uv]
+required-version = ">=0.13.4"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

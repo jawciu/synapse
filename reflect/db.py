@@ -167,6 +167,7 @@ SCHEMA_STATEMENTS = [
 
     """DEFINE TABLE reset_token SCHEMAFULL""",
     """DEFINE FIELD user_id ON reset_token TYPE string""",
+    # Retain the column name for existing schema; values are versioned SHA-256 hashes.
     """DEFINE FIELD token ON reset_token TYPE string""",
     """DEFINE FIELD expires_at ON reset_token TYPE datetime""",
     """DEFINE INDEX IF NOT EXISTS reset_token_idx ON reset_token FIELDS token UNIQUE""",
